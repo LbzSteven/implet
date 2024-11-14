@@ -3,9 +3,9 @@ import pickle
 import numpy as np
 import torch
 from sklearn.metrics import mean_squared_error
-from utils.data_utils import read_UCR_UEA, get_xai_ref, plot_multiple_images_with_attribution, z_normalization
-from utils.utils import explain
-
+from utils.data_utils import read_UCR_UEA, z_normalization
+from utils.explaination_utils import explain,get_xai_ref
+from utils.visualization import plot_multiple_images_with_attribution
 
 def insert_shapelet(data, shape1=None):
     shapelet_length = len(shape1)
@@ -40,7 +40,6 @@ def data_given_env_multiple_shapelet(data, shape1=None, num_shapelet=1,is_add=Tr
     length = data.shape[-1]
     c1 = np.zeros((num, 1, length))
     shapelet_length = len(shape1)
-
     startings = []
     for i in range(num):
         instance_startings = multiple_insert_shapelet(length, num_shapelet, shapelet_length)
@@ -54,19 +53,19 @@ def data_given_env_multiple_shapelet(data, shape1=None, num_shapelet=1,is_add=Tr
         startings.append(instance_startings)
     return c1, startings
 
-def interpolate_along_last_axis(data, output_length=150):
+def interpolate_along_last_axis(data, inst_length=150):
     data = data.reshape(-1, data.shape[-1])
     input_shape = data.shape
     input_length = input_shape[-1]
-    output_shape = input_shape[:-1] + (output_length,)
+    output_shape = input_shape[:-1] + (inst_length,)
 
     interpolated_data = np.zeros(output_shape)
     original_indices = np.linspace(0, 1, input_length)
-    target_indices = np.linspace(0, 1, output_length)
+    target_indices = np.linspace(0, 1, inst_length)
 
     for i in range(input_shape[0]):
         interpolated_data[i] = np.interp(target_indices, original_indices, data[i])
-    interpolated_data = interpolated_data.reshape(-1, 1, output_length)
+    interpolated_data = interpolated_data.reshape(-1, 1, inst_length)
     return interpolated_data
 
 def closest_gt_mse(shapelet_attr, gt_attr):
@@ -76,7 +75,7 @@ def closest_gt_mse(shapelet_attr, gt_attr):
     return np.min(mses)
 
 
-def insert_data_to_env(model, shapelet, selected_datasets, input_length, num_shapelet=1, is_add=True,
+def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shapelet=1, is_add=True,
                        xai_name='DeepLift', num_attribution_each=None,
                        target_class=0, repeat_max=100,
                        is_z_norm=True, is_plot=False, is_verbose=False,
@@ -98,7 +97,7 @@ def insert_data_to_env(model, shapelet, selected_datasets, input_length, num_sha
             train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
             if is_z_norm:
                 train_x = z_normalization(train_x)
-            train_x = interpolate_along_last_axis(train_x[:repeat_max], output_length=input_length)
+            train_x = interpolate_along_last_axis(train_x[:repeat_max], inst_length=inst_length)
 
             train_x, startings = data_given_env_multiple_shapelet(train_x, shape1=shapelet, num_shapelet=num_shapelet,is_add=is_add)
             if is_z_norm:
@@ -189,7 +188,7 @@ def get_bg_pred(model, selected_datasets, input_length, target_class, device='cu
     model.to(device)
     for ds in selected_datasets:
         train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
-        train_x = interpolate_along_last_axis(train_x[:100], output_length=input_length)
+        train_x = interpolate_along_last_axis(train_x[:100], inst_length=input_length)
         GP_preds_c0 = model(torch.from_numpy(train_x).float().to(device)).detach().cpu().numpy()
         predict_as_0 = np.count_nonzero(np.argmax(GP_preds_c0, axis=1) == target_class)
         percentage = predict_as_0 / len(train_x)

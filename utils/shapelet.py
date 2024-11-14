@@ -4,23 +4,24 @@ import numpy as np
 AEON_NUMBA_STD_THRESHOLD = 1e-8
 
 
-def _online_shapelet_distance(series, shapelet, position, length):
+def compute_shapelet_distance(series, shapelet, length, position):
+    series = series.flatten()
     sabs = np.abs(shapelet)
     sorted_indicies = np.array(
         sorted(range(len(shapelet)), reverse=True, key=lambda j: sabs[j])
     )
-    sorted_indicies
-
     subseq = series[position: position + length]
 
-    sum = 0.0
-    sum2 = 0.0
+    Sum = 0.0
+    Sum2 = 0.0
     for i in subseq:
-        sum += i
-        sum2 += i * i
+        Sum += i
+        Sum2 += i * i
 
-    mean = sum / length
-    std = math.sqrt((sum2 - mean * mean * length) / length)
+    mean = Sum / length
+
+    # std = math.sqrt((Sum2 - mean * mean * length) / length)
+    std = np.std(subseq)
     if std > AEON_NUMBA_STD_THRESHOLD:
         subseq = (subseq - mean) / std
     else:
@@ -34,8 +35,8 @@ def _online_shapelet_distance(series, shapelet, position, length):
 
     i = 1
     traverse = [True, True]
-    sums = [sum, sum]
-    sums2 = [sum2, sum2]
+    sums = [Sum, Sum]
+    sums2 = [Sum2, Sum2]
 
     while traverse[0] or traverse[1]:
         for n in range(2):
@@ -53,12 +54,14 @@ def _online_shapelet_distance(series, shapelet, position, length):
             sums2[n] += mod * end * end - mod * start * start
 
             mean = sums[n] / length
-            std = math.sqrt((sums2[n] - mean * mean * length) / length)
 
+            # std = math.sqrt((sums2[n] - mean * mean * length) / length)
+            std = np.std(series[pos:pos+length])
             dist = 0
             use_std = std > AEON_NUMBA_STD_THRESHOLD
 
             for j in range(length):
+
                 val = (series[pos + sorted_indicies[j]] - mean) / std if use_std else 0
                 temp = shapelet[sorted_indicies[j]] - val
                 dist += temp * temp
@@ -142,11 +145,11 @@ def information_gain_for_shapelet(shapelet_distances, labels):
     return best_info_gain, best_threshold
 
 
-def get_distances_info_gain(dataset, shapelet, labels, is_normalize=True, loss_func=np.linalg.norm):
+def get_distances_info_gain(dataset, shapelet, length, pos, labels):
     num = dataset.shape[0]
+    dataset = dataset.reshape(num, -1)
     shapelet_distances = np.zeros(num)
     for i in range(num):
-        shapelet_distances[i], _ = _online_shapelet_distance(dataset[i], shapelet, is_normalize=is_normalize,
-                                                             loss_func=loss_func)
+        shapelet_distances[i], _ = compute_shapelet_distance(dataset[i], shapelet, length=length, position=pos)
     info_gain, best_threshold = information_gain_for_shapelet(shapelet_distances, labels)
     return shapelet_distances, info_gain, best_threshold

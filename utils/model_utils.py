@@ -103,7 +103,7 @@ def get_all_preds_prob(model, loader, device):
     return np.concatenate(all_preds, axis=0), labels
 
 
-def get_hidden_layers(model, hook_block, data, device='cpu'):
+def get_hidden_layers(model, hook_block, data, device='cuda'):
     latent_representation = {}
     if hook_block is None:
         if isinstance(model, FCN) or isinstance(model, InceptionTime):
@@ -121,6 +121,7 @@ def get_hidden_layers(model, hook_block, data, device='cpu'):
 
         return hook
 
+    model.to(device)
     features = data.shape[-2]
     length = data.shape[-1]
     for i in range(len(data)):
