@@ -14,7 +14,7 @@ def plot_attribution(item, exp, figsize=(6.4, 4.8), normalize_attribution=True, 
 
     Arguments:
         item np.array: instance to be explained,if `mode = time`->`(1,time,feat)`  or `mode = feat`->`(1,feat,time)`.
-        exp np.array: explanation, ,if `mode = time`->`(time,feat)`  or `mode = feat`->`(feat,time)`.
+        exp np.array: explanation ,if `mode = time`->`(time,feat)`  or `mode = feat`->`(feat,time)`.
         figsize (int,int): desired size of plot.
         heatmap bool: 'True' if only heatmap, otherwise 'False'.
         save str: Path to save figure.
