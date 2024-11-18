@@ -163,7 +163,10 @@ def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shap
             starting = startings[i]
             if isinstance(starting, list):
                 starting_instance = starting.copy()
-                starting = starting_instance[0]
+                if len(starting_instance)>0:
+                    starting = starting_instance[0]
+                else:
+                    continue
             attribution_shapelets[i] = exp[starting:starting+length]
 
         if is_plot:
@@ -183,18 +186,18 @@ def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shap
     return dataset_attr, insert_shapelet_percentage
 
 
-def get_bg_pred(model, selected_datasets, input_length, target_class, device='cuda'):
-    bg_per_0 = {}
+def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cuda'):
+    bg_per = {}
     model.to(device)
     for ds in selected_datasets:
         train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
-        train_x = interpolate_along_last_axis(train_x[:100], inst_length=input_length)
+        train_x = interpolate_along_last_axis(train_x[:100], inst_length=inst_length)
         GP_preds_c0 = model(torch.from_numpy(train_x).float().to(device)).detach().cpu().numpy()
         predict_as_0 = np.count_nonzero(np.argmax(GP_preds_c0, axis=1) == target_class)
         percentage = predict_as_0 / len(train_x)
-        bg_per_0[ds] = percentage
+        bg_per[ds] = percentage
 
-    return bg_per_0
+    return bg_per
 
 
 def get_gt_attr(model, train_data, startings, length, save_dir, xai_name='DeepLift', target_class=None, repeats=None, device='cuda'):

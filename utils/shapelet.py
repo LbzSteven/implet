@@ -2,10 +2,28 @@ import math
 import numpy as np
 
 AEON_NUMBA_STD_THRESHOLD = 1e-8
+def z_norm_process_shapelet(shapelet):
+    length = len(shapelet)
+    Sum = 0.0
+    Sum2 = 0.0
+    for i in shapelet:
+        Sum += i
+        Sum2 += i * i
 
+    mean = Sum / length
 
+    # std = math.sqrt((Sum2 - mean * mean * length) / length)
+    std = np.std(shapelet)
+    if std > AEON_NUMBA_STD_THRESHOLD:
+        shapelet = (shapelet - mean) / std
+    else:
+        shapelet = np.zeros(length)
+    return shapelet
 def compute_shapelet_distance(series, shapelet, length, position):
     series = series.flatten()
+
+    # shapelet = z_norm_process_shapelet(shapelet)
+
     sabs = np.abs(shapelet)
     sorted_indicies = np.array(
         sorted(range(len(shapelet)), reverse=True, key=lambda j: sabs[j])
@@ -17,18 +35,19 @@ def compute_shapelet_distance(series, shapelet, length, position):
     for i in subseq:
         Sum += i
         Sum2 += i * i
-
-    mean = Sum / length
-
-    # std = math.sqrt((Sum2 - mean * mean * length) / length)
-    std = np.std(subseq)
-    if std > AEON_NUMBA_STD_THRESHOLD:
-        subseq = (subseq - mean) / std
-    else:
-        subseq = np.zeros(length)
+    #
+    # mean = Sum / length
+    #
+    # # std = math.sqrt((Sum2 - mean * mean * length) / length)
+    # std = np.std(subseq)
+    # if std > AEON_NUMBA_STD_THRESHOLD:
+    #     subseq = (subseq - mean) / std
+    # else:
+    #     subseq = np.zeros(length)
 
     best_dist = 0
-    best_pos = None
+    best_pos = position
+
     for i, n in zip(shapelet, subseq):
         temp = i - n
         best_dist += temp * temp
@@ -47,22 +66,22 @@ def compute_shapelet_distance(series, shapelet, length, position):
             if not traverse[n]:
                 continue
 
-            start = series[pos - n]
-            end = series[pos - n + length]
+            # start = series[pos - n]
+            # end = series[pos - n + length]
 
-            sums[n] += mod * end - mod * start
-            sums2[n] += mod * end * end - mod * start * start
+            # sums[n] += mod * end - mod * start
+            # sums2[n] += mod * end * end - mod * start * start
 
-            mean = sums[n] / length
+            # mean = sums[n] / length
 
             # std = math.sqrt((sums2[n] - mean * mean * length) / length)
-            std = np.std(series[pos:pos+length])
+            # std = np.std(series[pos:pos+length])
             dist = 0
-            use_std = std > AEON_NUMBA_STD_THRESHOLD
+            # use_std = std > AEON_NUMBA_STD_THRESHOLD
 
             for j in range(length):
-
-                val = (series[pos + sorted_indicies[j]] - mean) / std if use_std else 0
+                val = series[pos + sorted_indicies[j]]
+                # val = (series[pos + sorted_indicies[j]] - mean) / std if use_std else 0
                 temp = shapelet[sorted_indicies[j]] - val
                 dist += temp * temp
 
@@ -74,7 +93,6 @@ def compute_shapelet_distance(series, shapelet, length, position):
                 best_dist = dist
 
         i += 1
-
     return best_dist if best_dist == 0 else 1 / length * best_dist, best_pos
 
 
