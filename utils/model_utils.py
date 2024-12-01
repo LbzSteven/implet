@@ -1,15 +1,18 @@
+from typing import Union, Container
+
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from typing import cast, Dict
 from torch.nn import functional as F, ReLU
 from tslearn.datasets import UCR_UEA_datasets
-from tqdm.notebook import tqdm, trange
+# from tqdm.notebook import tqdm, trange
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 from tsai.models.InceptionTime import InceptionTime
 from tsai.models.MLP import MLP
 from tsai.models.FCN import FCN
 from tsai.models.ResNet import ResNet
+
 
 def model_init(model_name, in_channels, n_pred_classes, seq_len=None):
     # n_pred_classes = train_y.shape[1]
@@ -27,6 +30,7 @@ def model_init(model_name, in_channels, n_pred_classes, seq_len=None):
         raise 'Unspecified model'
     return model
 
+
 def fit(model, train_loader, device, num_epochs: int = 10,
         learning_rate: float = 0.001,
         patience: int = 1500, ) -> None:  # patience was 100
@@ -40,7 +44,7 @@ def fit(model, train_loader, device, num_epochs: int = 10,
     model.train()
     with tqdm(range(num_epochs)) as pbar:
         for epoch in pbar:
-
+            model.train()
             epoch_train_loss = 0
             for x_t, y_t in train_loader:
                 x_t, y_t = x_t.to(device), y_t.to(device)
@@ -58,7 +62,7 @@ def fit(model, train_loader, device, num_epochs: int = 10,
                 optimizer.step()
 
             model.eval()
-            tqdm.update
+            # tqdm.update()
             if epoch_train_loss < best_train_loss:
                 best_train_loss = epoch_train_loss
                 best_state_dict = model.state_dict()
@@ -71,6 +75,8 @@ def fit(model, train_loader, device, num_epochs: int = 10,
                         model.load_state_dict(cast(Dict[str, torch.Tensor], best_state_dict))
                     print(f'Early stopping! at {epoch + 1}, using state at {epoch + 1 - patience}')
                     return None
+
+
 def get_all_preds(model, loader, device):
     model.to(device)
     model.eval()
@@ -115,19 +121,84 @@ def get_hidden_layers(model, hook_block, data, device='cuda'):
         else:
             raise "Unspecified model"
 
-    def forward_hook(name):
-        def hook(model, input, output):
-            latent_representation[name] = output.detach().cpu()
+    activations = []
 
-        return hook
+    def forward_hook(_module, _forward_input, forward_output):
+        activations.append(forward_output)
 
     model.to(device)
     features = data.shape[-2]
     length = data.shape[-1]
+    handle = hook_block.register_forward_hook(forward_hook)
     for i in range(len(data)):
-        handle = hook_block.register_forward_hook(forward_hook(i))
+        activations.clear()
         input_data = torch.from_numpy(data[i].reshape(1, features, length)).float().to(device)
         output = model(input_data)
-        handle.remove()
+        latent_representation[i] = activations[0].detach().cpu().numpy()
+    handle.remove()
 
     return np.vstack(list(latent_representation.values()))
+
+
+def get_gradient_from_layers(model, hook_block, data, target_class: Union[int, Container], device='cuda'):
+    if hook_block is None:
+        if isinstance(model, FCN) or isinstance(model, InceptionTime):
+            hook_block = model.gap.gap
+        elif isinstance(model, ResNet):
+            hook_block = model.gap
+        elif isinstance(model, MLP):
+            hook_block = model.mlp[2][2]
+        else:
+            raise "Unspecified model"
+
+    # activations = []
+    gradients = []
+
+    # def forward_hook(_module, _forward_input, forward_output):
+    #     activations.append(forward_output)
+
+    def backward_hook(_module, _grad_input, grad_output):
+        gradients.append(grad_output[0])
+
+    # hook_handle_fwd = hook_block.register_forward_hook(forward_hook)
+    hook_handle_bwd = hook_block.register_full_backward_hook(backward_hook)
+
+    features = data.shape[-2]
+    length = data.shape[-1]
+
+    model.to(device)
+    model.eval()
+
+    result = []
+
+    for i in trange(len(data)):
+        x = torch.from_numpy(data[i].reshape(1, features, length)).float().to(device)
+        # activations.clear()
+        gradients.clear()
+        y = target_class[i] if isinstance(target_class, Container) else target_class
+
+        # forward pass
+        model.zero_grad()
+        output = model(x)
+        target_output = output[:, y]
+        # activations[0].requires_grad_(True)
+        # print(output)
+        # z = output.detach().cpu().numpy().flatten()
+        # g = np.array([[z[0] * (1 - z[0]), z[0] * z[1]], [z[0] * z[1], z[1] * (1 - z[1])]])
+        # w = model.fcn_model.fc.weight.detach().cpu().numpy()
+        # print([z[0] * (1 - z[0]), z[1] * (1 - z[1]), z[0] * z[1]])
+        # print(g @ w)
+
+        # backward pass
+        model.zero_grad()
+        g = torch.zeros_like(output)
+        g[:, y] = 1
+        output.backward(g, retain_graph=True)
+        grad_flat = gradients[0].view(-1)
+        result.append(grad_flat.detach().cpu().numpy())
+
+    # hook_handle_fwd.remove()
+    hook_handle_bwd.remove()
+
+    result = np.stack(result)
+    return result

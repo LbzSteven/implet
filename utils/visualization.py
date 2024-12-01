@@ -1,12 +1,28 @@
-#based on TSInterpret Implementation
+# based on TSInterpret Implementation
 import os
 
+import math
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+import matplotlib.colorbar as cbar
+import matplotlib.colors as mcolors
 import seaborn as sns
 import numpy as np
 
 from utils.data_utils import convert_to_label_if_one_hot
 from utils.utils import create_path_if_not_exists
+
+
+def _save_or_show(save_path):
+    if save_path is not None:
+        path_only = os.path.split(save_path)[0]
+        if path_only and not os.path.isdir(path_only):
+            os.makedirs(path_only, exist_ok=True)
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
+    plt.close()
 
 
 def plot_attribution(item, exp, figsize=(6.4, 4.8), normalize_attribution=True, save_path=None, title=""):
@@ -30,7 +46,7 @@ def plot_attribution(item, exp, figsize=(6.4, 4.8), normalize_attribution=True, 
         # Shahbaz: Set color pallete such that negative is red and positive is blue
         my_cmap = sns.diverging_palette(260, 10, as_cmap=True)
 
-        #set min and max to have same absolute values
+        # set min and max to have same absolute values
         extremum = np.max(abs(exp))
 
         # cbar_ax = fig.add_axes([.91, .3, .03, .4])
@@ -42,7 +58,7 @@ def plot_attribution(item, exp, figsize=(6.4, 4.8), normalize_attribution=True, 
                 cmap=my_cmap,
                 ax=axn,
                 yticklabels=False,
-                vmin=-1*extremum,
+                vmin=-1 * extremum,
                 vmax=extremum,
                 cbar_ax=cbar_ax,
                 # cbar_kws={"orientation": "vertical"},
@@ -117,14 +133,8 @@ def plot_attribution(item, exp, figsize=(6.4, 4.8), normalize_attribution=True, 
             plt.ylabel(f"Feature {i}", fontweight="bold", fontsize="large")
             i = i + 1
         fig.tight_layout(rect=[0, 0, 0.9, 1])
-    if save_path is not None:
-        path_only = save_path.rsplit("/", 1)[0] + "/"
+    _save_or_show(save_path)
 
-        create_path_if_not_exists(path_only)
-        plt.savefig(save_path)
-    else:
-        plt.show()
-    plt.close()
 
 def plot_multiple_images(data, one_hot, n, shape, figsize=(12, 6)):
     fig, axes = plt.subplots(shape[0], shape[1], figsize=figsize)
@@ -162,9 +172,9 @@ def plot_multiple_images(data, one_hot, n, shape, figsize=(12, 6)):
     plt.show()
 
 
-def plot_multiple_images_with_attribution(test_x, pred_y, n, shape, figsize=(12, 6), use_attribution=False,
+def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), use_attribution=False,
                                           attributions=None, normalize_attribution=True, title="", save_path=None,
-                                          test_y=None):
+                                          test_y=None, attr_extremum=None):
     """
     Plots multiple subplots with an option to include attribution heatmaps.
 
@@ -180,6 +190,12 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, shape, figsize=(12,
         save_path: Save the image if given the path
         :param test_y the GT label for the input:
     """
+    num_rol_col = math.ceil(math.sqrt(n))
+    shape = (num_rol_col, math.ceil(n / num_rol_col))
+
+    if figsize is None:
+        figsize = (num_col_rol * 3, num_col_rol * 8)
+
     fig, axes = plt.subplots(shape[0], shape[1], figsize=figsize)
     axes = axes.flatten()  # Flatten axes for easy iteration
 
@@ -204,13 +220,15 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, shape, figsize=(12,
 
         # Plot the data
         channel_data = test_x[i].copy().reshape(1, 1, -1).flatten()
-        axes[i].plot(range(len(channel_data)), channel_data, color=color)
+        axes[i].plot(np.arange(len(channel_data)) + 0.5, channel_data, color=color)
         # axes[i].set_xticks([])
         axes[i].tick_params(axis='x', rotation=90)
         # Add attribution heatmap if use_attribution is True
         if use_attribution and attributions is not None:
             axn = axes[i].twinx()  # Create a secondary axis for the heatmap
             extremum = np.max(abs(attributions[i])) if normalize_attribution else None
+            if attr_extremum is not None:
+                extremum = attr_extremum
             sns.heatmap(
                 attributions[i].reshape(1, -1),
                 fmt="g",
@@ -225,16 +243,19 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, shape, figsize=(12,
             # axn.set_yticks([])
             # axn.set_xticks(np.arange(0, 100, 10))
 
-        if test_y is not None:
-            axes[i].set_title(f"Image {i + 1}, Predicted: {label}|GT:{test_y[i]}")
-        else:
-            axes[i].set_title(f"Image {i + 1}, Predicted: {label}")
+        # if test_y is not None:
+        #     axes[i].set_title(f"Image {i + 1}, Predicted: {label}|GT:{test_y[i]}")
+        # else:
+        #     axes[i].set_title(f"Image {i + 1}, Predicted: {label}")
     # Add a global color bar if attributions are used
     # if use_attribution:
     #     cbar_ax = fig.add_axes([0.91, 0.3, 0.03, 0.4])
     #     sm = plt.cm.ScalarMappable(cmap=my_cmap if normalize_attribution else "viridis")
     # sm.set_array([])
     # fig.colorbar(sm, cax=cbar_ax)
+
+    for i in range(n, shape[0] * shape[1]):
+        axes[i].axis('off')
 
     # Create a custom legend for labels
     handles = [plt.Line2D([0], [0], color=c, lw=2) for c in label_to_color.values()]
@@ -244,11 +265,64 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, shape, figsize=(12,
     # Adjust layout and display
     plt.tight_layout(rect=[0, 0, 0.9, 1])
     plt.suptitle(title)
-    if save_path is not None:
-        path_only = save_path.rsplit("/", 1)[0] + "/"
-        if not os.path.exists(path_only):
-            os.makedirs(path_only)
-        plt.savefig(save_path)
-        plt.close()
-    else:
-        plt.show()
+    _save_or_show(save_path)
+
+
+def plot_implet_clusters(implets, cluster_indices, centroids,
+                         figsize=(6, 8), save_path=None):
+    """
+    :param implets: list of array of shape (seq_len, 2), where the first dim is
+    features, second dim is importance
+    :param cluster_indices: list of list of int, the indices of implets in each
+    cluster
+    :param centroids: list of array. Shape (seq_len,) or (seq_len, 2).
+    """
+
+    k = len(cluster_indices)
+    if figsize is None:
+        figsize = (6, 2 * k + 2)
+    fig, axs = plt.subplots(k, 1, figsize=figsize)
+
+    # normalize importance coloring based on max(abs(importance))
+
+
+    # y-scale limits
+    ymin = min([np.min(imp[0]) for imp in implets])
+    ymax = max([np.max(imp[0]) for imp in implets])
+    lim_y_min = ymin - (ymax - ymin) * 0.1
+    lim_y_max = ymax + (ymax - ymin) * 0.1
+
+    def plot(y, v, norm, ax, alpha=1.0, lw=1.0):
+        x = np.arange(len(y))
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        lc = LineCollection(segments, cmap='coolwarm', norm=norm)
+        lc.set_array(v)
+        lc.set_alpha(alpha)
+        lc.set_linewidths(lw)
+        ax.add_collection(lc)
+
+    for j in range(k):
+        attrs = np.concatenate([np.abs(implets[i][:, 1]).flatten() for i in cluster_indices[j]])
+        extremum = np.mean(attrs) + 3 * np.std(attrs)
+        norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
+        # plot members
+        for t, i in enumerate(cluster_indices[j]):
+            plot(implets[i][:, 0] + t * 0.05 * (ymax - ymin), implets[i][:, 1], norm, axs[j], alpha=0.75)
+        # plot centroid
+        if len(centroids[0].shape) == 1:  # 1d clustering
+            axs[j].plot(centroids[j], lw=3, c='gray')
+        else:  # 2d clustering
+            plot(centroids[j][:, 0], centroids[j][:, 1], norm, axs[j], lw=3)
+
+        # add colorbar
+        sm = plt.cm.ScalarMappable(cmap='coolwarm', norm=norm)
+        sm.set_array([])  # Set an empty array for ScalarMappable
+        # Add the color bar to the figure
+        cbar = fig.colorbar(sm, ax=axs[j])
+
+        axs[j].set_title(f'members: {str(cluster_indices[j])}')
+        axs[j].autoscale()
+        # axs[j].set_ylim(lim_y_min, lim_y_max)
+    plt.tight_layout()
+    _save_or_show(save_path)

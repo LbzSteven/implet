@@ -186,12 +186,14 @@ def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shap
     return dataset_attr, insert_shapelet_percentage
 
 
-def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cuda'):
+def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cuda',is_z_norm=True):
     bg_per = {}
     model.to(device)
     for ds in selected_datasets:
         train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
         train_x = interpolate_along_last_axis(train_x[:100], inst_length=inst_length)
+        if is_z_norm:
+            train_x = z_normalization(train_x)
         GP_preds_c0 = model(torch.from_numpy(train_x).float().to(device)).detach().cpu().numpy()
         predict_as_0 = np.count_nonzero(np.argmax(GP_preds_c0, axis=1) == target_class)
         percentage = predict_as_0 / len(train_x)
@@ -202,8 +204,9 @@ def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cud
 
 def get_gt_attr(model, train_data, startings, length, save_dir, xai_name='DeepLift', target_class=None, repeats=None, device='cuda'):
     if save_dir is not None:
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        path_only = os.path.split(save_dir)[0]
+        if path_only and not os.path.isdir(path_only):
+            os.makedirs(path_only, exist_ok=True)
     if repeats is None:
         repeats = len(train_data)
     if startings is not None:
@@ -218,10 +221,11 @@ def get_gt_attr(model, train_data, startings, length, save_dir, xai_name='DeepLi
     for i in range(repeats):
         target_sample = torch.from_numpy(train_data[i].reshape(1, -1, train_data.shape[-1])).float().to(device)
 
-        if target_class is None:
+        if target_class is not None:
+            predicted_label = target_class
+        else:
             predicted_label = torch.argmax(model(target_sample)).item()
-            target_class = predicted_label
-        exp = explain(xai, xai_name, target_sample, target_class, sliding_window=(1, 5), baselines=None)
+        exp = explain(xai, xai_name, target_sample, predicted_label, sliding_window=(1, 5), baselines=None)
         exp = exp.detach().cpu().clone().numpy().flatten()
 
         attributions[i] = exp
@@ -236,6 +240,6 @@ def get_gt_attr(model, train_data, startings, length, save_dir, xai_name='DeepLi
             'attributions': attributions,
             'attribution_shapelet': attribution_shapelet
         }
-        with open(os.path.join(save_dir, 'train_exp.pkl'), 'wb') as f:
+        with open(os.path.join(save_dir), 'wb') as f:
             pickle.dump(gt_attr, f)
     return attributions, attribution_shapelet  # gt_attr,

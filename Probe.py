@@ -19,6 +19,10 @@ from sklearn.svm import SVC
 
 def probe_shapelet(dataset, labels, pdata, model, shapelet, pos, device='cuda', save_path='probe/simu_implet_random',
                    shapelet_labels=None, is_threshold_info_gain=False):
+    path_only = save_path
+    if path_only and not os.path.isdir(path_only):
+        os.makedirs(path_only, exist_ok=True)
+
     length = len(shapelet)
     num = pdata.shape[0]
     pdata_s_distances = np.zeros(num)
@@ -30,7 +34,6 @@ def probe_shapelet(dataset, labels, pdata, model, shapelet, pos, device='cuda', 
     data = pdata_s_distances.reshape(-1, 1)
 
     if not is_threshold_info_gain:
-
         kmeans = KMeans(n_clusters=2, random_state=0).fit(data)
         centroids = kmeans.cluster_centers_.flatten()
         threshold = np.mean(centroids)
@@ -41,7 +44,7 @@ def probe_shapelet(dataset, labels, pdata, model, shapelet, pos, device='cuda', 
                                                                                  dataset_s_distances]
     pdata_s_label = shapelet_labels[1] if shapelet_labels[1] is not None else [i >= threshold for i in
                                                                                pdata_s_distances]
-
+    print(pdata_s_label)
     dataset_latent = utils.get_hidden_layers(model=model, hook_block=None, data=dataset, device=device)
     pdata_latent = utils.get_hidden_layers(model=model, hook_block=None, data=pdata, device=device)
 
@@ -102,7 +105,8 @@ def probe_shapelet(dataset, labels, pdata, model, shapelet, pos, device='cuda', 
         'pred_train': pred_train,
         'pred_test': pred_test,
         'dataset_s_pred': dataset_s_pred,
-        'accuracy': accuracy
+        'accuracy': accuracy,
+        'classifier': classifier
     }
 
     with open(os.path.join(save_path, 'results.pkl'), 'wb') as f:
