@@ -21,7 +21,8 @@ def z_norm_process_shapelet(shapelet):
     return shapelet
 def compute_shapelet_distance(series, shapelet, length, position):
     series = series.flatten()
-
+    if position is None:
+        position = 0
     # shapelet = z_norm_process_shapelet(shapelet)
 
     sabs = np.abs(shapelet)

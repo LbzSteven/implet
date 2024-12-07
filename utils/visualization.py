@@ -174,7 +174,8 @@ def plot_multiple_images(data, one_hot, n, shape, figsize=(12, 6)):
 
 def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), use_attribution=False,
                                           attributions=None, normalize_attribution=True, title="", save_path=None,
-                                          test_y=None, attr_extremum=None):
+                                          test_y=None, attr_extremum=None, startings=None, shapelet_length=None,
+                                          is_title=False):
     """
     Plots multiple subplots with an option to include attribution heatmaps.
 
@@ -192,13 +193,15 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
     """
     num_rol_col = math.ceil(math.sqrt(n))
     shape = (num_rol_col, math.ceil(n / num_rol_col))
-
+    # shape = (math.ceil(n / num_rol_col), num_rol_col)
     if figsize is None:
-        figsize = (num_col_rol * 3, num_col_rol * 8)
+        figsize = (num_rol_col * 3, num_rol_col * 8)
 
     fig, axes = plt.subplots(shape[0], shape[1], figsize=figsize)
-    axes = axes.flatten()  # Flatten axes for easy iteration
-
+    if n>1:
+        axes = axes.flatten()  # Flatten axes for easy iteration
+    else:
+        axes = [axes]
     # Define different colors for different labels
     colors = ['b', 'r', 'g', 'c', 'm', 'y', 'k']  # Customize as needed
     label_to_color = {}
@@ -208,6 +211,7 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
     if test_y is not None:
         test_y = convert_to_label_if_one_hot(test_y)
     pred_y_labels = convert_to_label_if_one_hot(pred_y)
+    print(pred_y_labels, pred_y,test_y)
     for i in range(n):
         if i >= len(axes):
             break
@@ -221,6 +225,11 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
         # Plot the data
         channel_data = test_x[i].copy().reshape(1, 1, -1).flatten()
         axes[i].plot(np.arange(len(channel_data)) + 0.5, channel_data, color=color)
+
+        if startings is not None:
+            for starting in startings[i]:
+                axes[i].axvline(starting + 0.5, color='r', linestyle='--', alpha=0.75)
+                axes[i].axvline(starting + shapelet_length - 1 + 0.5, color='r', linestyle='--', alpha=0.75)
         # axes[i].set_xticks([])
         axes[i].tick_params(axis='x', rotation=90)
         # Add attribution heatmap if use_attribution is True
@@ -242,11 +251,11 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
             )
             # axn.set_yticks([])
             # axn.set_xticks(np.arange(0, 100, 10))
-
-        # if test_y is not None:
-        #     axes[i].set_title(f"Image {i + 1}, Predicted: {label}|GT:{test_y[i]}")
-        # else:
-        #     axes[i].set_title(f"Image {i + 1}, Predicted: {label}")
+        if is_title:
+            if test_y is not None:
+                axes[i].set_title(f"Image {i + 1}, Predicted: {label}|GT:{test_y[i]}")
+            else:
+                axes[i].set_title(f"Image {i + 1}, Predicted: {label}")
     # Add a global color bar if attributions are used
     # if use_attribution:
     #     cbar_ax = fig.add_axes([0.91, 0.3, 0.03, 0.4])
@@ -284,7 +293,6 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
     fig, axs = plt.subplots(k, 1, figsize=figsize)
 
     # normalize importance coloring based on max(abs(importance))
-
 
     # y-scale limits
     ymin = min([np.min(imp[0]) for imp in implets])

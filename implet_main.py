@@ -48,9 +48,9 @@ def main(dataset, model_path, k=None, lamb=0.1, model_type='FCN', xai_name='Deep
 
     attr_save_dir = f'attributions/{dataset}_class_{str(attr_class)}/{xai_name}/exp.pkl'
     if not os.path.isfile(attr_save_dir):
-        attr_gp, _ = get_gt_attr(model, test_x, None, None,
-                                 save_dir=attr_save_dir,
-                                 xai_name=xai_name, target_class=attr_class)
+        attr_gp, _ = get_attr(model, test_x, None, None,
+                              save_dir=attr_save_dir,
+                              xai_name=xai_name, target_class=attr_class)
     else:
         with open(attr_save_dir, 'rb') as f:
             attr = pickle.load(f)
@@ -80,7 +80,7 @@ def main(dataset, model_path, k=None, lamb=0.1, model_type='FCN', xai_name='Deep
                     'num_implets': num_implets,
                 }, f
             )
-
+        print(len(implets_class_i))
         plot_multiple_images_with_attribution(
             np.array([imp[1] for imp in implets_class_i[:50]]),
             np.array([0 for _ in implets_class_i[:50]]),

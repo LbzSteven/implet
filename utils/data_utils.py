@@ -21,6 +21,11 @@ def convert_to_label_if_one_hot(input_data):
             return np.argmax(input_data, axis=-1)
         else:
             return input_data
+    if isinstance(input_data, list):
+        if isinstance(input_data[0], list):
+            return [np.argmax(i) for i in input_data]
+        else:
+            return np.array(input_data)
 
 class CustomDataset(Dataset):
     def __init__(self, feature, target):

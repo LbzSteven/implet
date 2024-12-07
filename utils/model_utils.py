@@ -147,7 +147,7 @@ def get_gradient_from_layers(model, hook_block, data, target_class: Union[int, C
         elif isinstance(model, ResNet):
             hook_block = model.gap
         elif isinstance(model, MLP):
-            hook_block = model.mlp[2][2]
+            hook_block = model.mlp[2][1]
         else:
             raise "Unspecified model"
 
