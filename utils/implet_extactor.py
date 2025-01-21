@@ -120,7 +120,7 @@ def max_score_subsequence(arr, left, lamb, threshold, kmin=None, kmax=None):
     return arr[best_start:best_end + 1], max_score, best_start, best_end
 
 
-def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False):
+def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False, thresh_factor=1):
     """
     extract implets from a dataset with a computed threshold. This method iterate through instances in datasets and put them into
     max_score_subsequence to find the subseuqnece that with the largest subsequence with each starting points.
@@ -151,13 +151,14 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
         avg = np.mean(abs_attr)
         std = np.std(abs_attr)
         # threshold = avg + 1 * std if not is_global_threshold else global_threshold
-        threshold = avg + 0.6 * std
+        threshold = avg + thresh_factor * std
+        # threshold = avg + 0.6 * std
         while starting < len(abs_attr):
             sub_attr, max_score, best_start, best_end = max_score_subsequence(arr=abs_attr, left=starting, lamb=lamb,
                                                                               threshold=threshold)
             if best_end != -1:
                 implets.append(
-                    [i, inst[best_start:best_end + 1], attr[i, best_start:best_end + 1], max_score, best_start,
+                    [i, inst[best_start:best_end+1], attr[i, best_start:best_end+1], max_score, best_start,
                      best_end])
                 starting = best_end + 1
             else:
@@ -204,7 +205,7 @@ def implet_cluster_auto(implets: List[np.ndarray], ks=None):
     """
 
     if ks is None:
-        ks = range(2, min(5, len(implets)))
+        ks = range(1, min(5, len(implets)))
 
     best_silhouette = -1
     best_k = None

@@ -1,17 +1,3 @@
-import os
-
-import numpy as np
-from sklearn.model_selection import train_test_split
-
-import utils
-import pickle
-from sklearn.metrics import (
-    accuracy_score
-)
-from sklearn.linear_model import LogisticRegression
-from sklearn.cluster import KMeans
-from sklearn.svm import SVC
-
 
 import os
 import numpy as np
@@ -62,9 +48,9 @@ class ShapeletProber:
         classifier.fit(X_train, y_train)
         return classifier
 
-    def probe(self, dataset, labels, pdata, shapelet, pos=None, shapelet_labels=None, is_threshold_info_gain=False,
+    def probe(self, dataset, labels, pdata, shapelet=None, pos=None, shapelet_labels=None, is_threshold_info_gain=False,
               classifier_type='LR', save_results=True, use_saved_latent=False, merge_latent=False):
-        length = len(shapelet)
+
 
         # Initialize variables to None
         dataset_s_distances = pdata_s_distances = dataset_s_label = None
@@ -76,7 +62,7 @@ class ShapeletProber:
         if use_saved_latent and os.path.exists(latent_data_path):
             if self.is_verbose:
                 print("Using saved latent data from:", latent_data_path)
-            saved_data = self.load_pickle('probe_latent_label.pkl')
+            saved_data = self.load_pickle(latent_data_path)
 
             # Assign variables from saved data
             dataset_s_label = saved_data['dataset_s_label']
@@ -87,31 +73,35 @@ class ShapeletProber:
             y_test = saved_data['label_test']
         else:
             # Compute distances
-            pdata_s_distances = self.compute_distances(pdata, shapelet, length, pos)
-            dataset_s_distances, _, best_threshold = utils.get_distances_info_gain(
-                dataset, shapelet, length, pos, labels)
+            if shapelet_labels is None:
+                length = len(shapelet)
+                pdata_s_distances = self.compute_distances(pdata, shapelet, length, pos)
+                dataset_s_distances, _, best_threshold = utils.get_distances_info_gain(
+                    dataset, shapelet, length, pos, labels)
 
-            # Determine threshold
-            threshold = self.determine_threshold(pdata_s_distances, is_threshold_info_gain, best_threshold)
+                # Determine threshold
+                threshold = self.determine_threshold(pdata_s_distances, is_threshold_info_gain, best_threshold)
 
-            # Label shapelets
-            dataset_s_label = shapelet_labels[0] if shapelet_labels and shapelet_labels[0] is not None else [
-                i >= threshold for i in dataset_s_distances]
-            pdata_s_label = shapelet_labels[1] if shapelet_labels and shapelet_labels[1] is not None else [
-                i >= threshold for i in pdata_s_distances]
-
+                # Label shapelets
+                dataset_s_label = [
+                    i >= threshold for i in dataset_s_distances]
+                pdata_s_label =[
+                    i >= threshold for i in pdata_s_distances]
+            else:
+                dataset_s_label = shapelet_labels[0]
+                pdata_s_label = shapelet_labels[1]
             # Extract latent spaces
             dataset_latent, pdata_latent = self.get_latent_representation(dataset, pdata)
 
             if merge_latent:
                 # Merge dataset_latent and pdata_latent
-                dataset_latent = np.vstack([dataset_latent, pdata_latent])
-                dataset_s_label = np.concatenate([dataset_s_label, pdata_s_label])
+                pdata_latent = np.vstack([dataset_latent, pdata_latent])
+                pdata_s_label = np.concatenate([dataset_s_label, pdata_s_label])
 
             # Prepare data for probing classifier
             X_train, X_test, y_train, y_test = train_test_split(
-                dataset_latent if merge_latent else pdata_latent,
-                dataset_s_label if merge_latent else pdata_s_label,
+                pdata_latent,
+                pdata_s_label,
                 test_size=0.2,
                 random_state=42
             )
@@ -190,7 +180,7 @@ def probe_shapelet(dataset, labels, pdata, model, shapelet, pos=None, device='cu
     :param pdata: simulated diverse datasets that used for probing
     :param model: model to be tested
     :param shapelet: the shapelet that we are investigating
-    :param pos: starting position ofthe shapelet (used for the quick shapelet distance computation)
+    :param pos: starting position of the shapelet (used for the quick shapelet distance computation)
     :param device:
     :param save_path:
     :param shapelet_labels: if the datasets and pdata is given, if not, computing shapelet distance

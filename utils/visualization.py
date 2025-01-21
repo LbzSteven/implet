@@ -204,22 +204,25 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
         axes = [axes]
     # Define different colors for different labels
     colors = ['b', 'r', 'g', 'c', 'm', 'y', 'k']  # Customize as needed
-    label_to_color = {}
+
 
     # Create a color palette for the heatmap if attributions are used
     my_cmap = sns.diverging_palette(260, 10, as_cmap=True)
     if test_y is not None:
         test_y = convert_to_label_if_one_hot(test_y)
     pred_y_labels = convert_to_label_if_one_hot(pred_y)
-    print(pred_y_labels, pred_y,test_y)
+    # print(pred_y_labels, pred_y, test_y)
+    label_to_color = {}
+    _unique_labels = np.unique(pred_y_labels)
+    for _unique_label in _unique_labels:
+        if _unique_label not in label_to_color:
+            label_to_color[_unique_label] = colors[len(label_to_color) % len(colors)]
     for i in range(n):
         if i >= len(axes):
             break
         label = pred_y_labels[i]
-        if label not in label_to_color:
-            label_to_color[label] = colors[len(label_to_color) % len(colors)]
-        color = label_to_color[label]
 
+        color = label_to_color[label]
         length = test_x.shape[-1]
 
         # Plot the data
@@ -291,7 +294,8 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
     if figsize is None:
         figsize = (6, 2 * k + 2)
     fig, axs = plt.subplots(k, 1, figsize=figsize)
-
+    if k == 1:
+        axs = [axs]
     # normalize importance coloring based on max(abs(importance))
 
     # y-scale limits
@@ -316,7 +320,7 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
         norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
         # plot members
         for t, i in enumerate(cluster_indices[j]):
-            plot(implets[i][:, 0] + t * 0.05 * (ymax - ymin), implets[i][:, 1], norm, axs[j], alpha=0.75)
+            plot(implets[i][:, 0] + t/len(cluster_indices[j]) * (ymax - ymin), implets[i][:, 1], norm, axs[j], alpha=0.75)
         # plot centroid
         if len(centroids[0].shape) == 1:  # 1d clustering
             axs[j].plot(centroids[j], lw=3, c='gray')

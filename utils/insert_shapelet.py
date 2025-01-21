@@ -7,8 +7,10 @@ from sklearn.metrics import mean_squared_error
 
 import utils
 from utils.data_utils import read_UCR_UEA, z_normalization
+from utils.model_utils import get_pred_with_acc
 from utils.explaination_utils import explain, get_xai_ref
 from utils.visualization import plot_multiple_images_with_attribution
+from utils.utils import pickle_save_to_file, pickle_load_from_file
 
 
 def insert_blender(instance, shape1, starting, blend_length):
@@ -71,7 +73,7 @@ def insert_best(instance, shape1, quantile: float = None):
         # print(indices, insert_diff[indices], insert_diff[indices])
     best_diff = instance_diff[starting] - shapelet_diff
     # print(instance[starting] - shape1[0])
-    instance[starting:starting + shapelet_length] = shape1 + (instance[starting] - shape1[0] - best_diff/2)
+    instance[starting:starting + shapelet_length] = shape1 + (instance[starting] - shape1[0] - best_diff / 2)
 
     return instance, starting
 
@@ -97,6 +99,32 @@ def insert_shapelet(data, shape1, is_add=False, is_blending=False, blend_length=
             a[starting:starting + shapelet_length] = shape1
         c1[i] = a.reshape(1, length)
         startings.append([starting])
+    return c1, startings
+
+def insert_fixed(data, shape1, starting, is_add=False, is_blending=False, blend_length=5, shift=True):
+    shapelet_length = len(shape1)
+
+    num = data.shape[0]
+    length = data.shape[-1]
+    c1 = np.zeros((num, 1, length))
+    startings = [starting]*num
+    for i in range(num):
+        a = data[i].flatten()
+        if is_add:
+            a[starting:starting + shapelet_length] = a[starting:starting + shapelet_length] + shape1
+        elif shift:
+            diff_a = a[starting] - a[starting + shapelet_length]
+            diff_shape = shape1[0] - shape1[-1]
+            diff = diff_a - diff_shape
+            a[starting:starting + shapelet_length] = shape1 + (a[starting] - shape1[0] - diff / 2)
+        elif is_blending:
+            a = insert_blender(a, shape1, starting, blend_length)
+        else:
+            a[starting:starting + shapelet_length] = shape1
+        c1[i] = a.reshape(1, length)
+
+
+
     return c1, startings
 
 
@@ -177,6 +205,61 @@ def closest_gt_mse(shapelet_attr, gt_attr):
         mses.append(mean_squared_error(shapelet_attr, gt_attr[i], squared=True))
     return np.min(mses)
 
+def compute_attributions(model, data, xai_name, target_class, device='cuda', startings=None, length=None, repeats=None):
+    """
+    Compute attributions for a dataset using the specified XAI method.
+    :param model:
+    :param data:
+    :param xai_name:
+    :param target_class:
+    :param device:
+    :param startings: starting position of the shapelet
+    :param length: the length of the shapelet
+    :param repeats: first number of repeat instance
+    :return:
+    """
+
+    xai_ref = get_xai_ref(xai_name)
+    xai = xai_ref(model)
+    model.to(device)
+
+    if repeats is None:
+        repeats = len(data)
+    attributions = np.zeros((repeats, data.shape[-1]))
+    if startings is None:
+        attribution_shapelets = None
+    elif isinstance(length, int):
+        attribution_shapelets = np.zeros((repeats, length))
+    else:
+        attribution_shapelets = []
+
+    for i in range(repeats):
+        sample = torch.from_numpy(data[i].reshape(1, -1, data.shape[-1])).float().to(device)
+        target_label = target_class if target_class is not None else torch.argmax(model(sample)).item()
+        exp = explain(xai, xai_name, sample, target_label, sliding_window=(1, 5), baselines=None)
+        exp = exp.detach().cpu().numpy().flatten()
+        attributions[i] = exp
+        if startings is not None:
+            attribution_shapelets.append(exp[startings[i]:startings[i] + length])
+
+    return attributions, np.array(attribution_shapelets, dtype=object)
+
+
+def prepare_dataset(dataset, inst_length, is_z_norm=True, repeat_max=None):
+    """
+    Prepares the dataset by interpolating and normalizing.
+    """
+    train_ds, test_x, train_y, test_y, enc1 = utils.read_UCR_UEA(dataset=dataset, UCR_UEA_dataloader=None)
+
+    if repeat_max is None:
+        repeat_max = len(train_ds)
+
+    train_ds = utils.interpolate_along_last_axis(train_ds[:repeat_max], inst_length=inst_length)
+    if is_z_norm:
+        train_ds = utils.z_normalization(train_ds)
+
+    return train_ds
+
 
 def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shapelet=1, is_add=True,
                        xai_name='DeepLift', num_attribution_each=None,
@@ -199,86 +282,53 @@ def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shap
 
     for ds in selected_datasets:
         if not os.path.exists(os.path.join(save_dir, f'{ds}.pkl')):
-            train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
-            if is_z_norm:
-                train_x = z_normalization(train_x)
-            train_x = interpolate_along_last_axis(train_x[:repeat_max], inst_length=inst_length)
-
-            train_x, startings = data_given_env_multiple_shapelet(train_x, shape1=shapelet, num_shapelet=num_shapelet,
-                                                                  is_add=is_add, is_blending=is_blending,
-                                                                  is_best_insert=is_best_insert,
-                                                                  blend_length=blend_length)
+            train_ds = prepare_dataset(ds, inst_length, is_z_norm=True, repeat_max=repeat_max)
+            train_ds, startings = data_given_env_multiple_shapelet(train_ds, shape1=shapelet, num_shapelet=num_shapelet,
+                                                                   is_add=is_add, is_blending=is_blending,
+                                                                   is_best_insert=is_best_insert,
+                                                                   blend_length=blend_length)
             # if is_z_norm:
-            #     train_x = z_normalization(train_x)
-            model.to(device)
-            # Now it is predicted as 0, could be further changed to look at specific dataset
-            preds = model(torch.from_numpy(train_x).float().to(device)).detach().cpu().numpy()
-            predict_as_target_class = np.count_nonzero(np.argmax(preds, axis=1) == target_class)
-            percentage = predict_as_target_class / len(train_x)
+            #     train_ds = z_normalization(train_ds)
+            preds, percentage = get_pred_with_acc(model, train_ds, target_class, device)
 
             insert_shapelet_percentage[ds] = percentage
             # model.cpu()
 
             if is_verbose:
                 print(f'----------------------------')
-                # print(f'{ds} mean: {train_x.mean():.2f}')
-                print(f'{ds} as class 0', predict_as_target_class)
+                # print(f'{ds} mean: {train_ds.mean():.2f}'))
                 print(f'percentage {percentage:.2f}')
 
             data_save = {
                 'ds_name': ds,
                 'shapelet': shapelet,
                 'length': length,
-                'train_x': train_x,
+                'train_ds': train_ds,
                 'startings': startings,
-                'num_sample': len(train_x),
+                'num_sample': len(train_ds),
                 'preds': preds,
                 'target_class': target_class,
                 'percentage': percentage
             }
-            with open(os.path.join(save_dir, f'{ds}.pkl'), 'wb') as f:
-                pickle.dump(data_save, f)
 
+            pickle_save_to_file(data=data_save, file_path=os.path.join(save_dir, f'{ds}.pkl'))
         else:
-            with open(os.path.join(save_dir, f'{ds}.pkl'), 'rb') as f:
-                data_save = pickle.load(f)
+            data_save = pickle_load_from_file(file_path=os.path.join(save_dir, f'{ds}.pkl'))
 
-            _, _, _, train_x, startings, _, preds, _, percentage = data_save.values()
+            _, _, _, train_ds, startings, _, preds, _, percentage = data_save.values()
             insert_shapelet_percentage[ds] = percentage
 
         if xai_name is None:
             continue
 
-        attributions = np.zeros((train_x.shape[0], train_x.shape[-1]))
-        xai_ref = get_xai_ref(xai_name)
-        xai = xai_ref(model)
-
-        if not num_attribution_each:
-            num_attribution = len(train_x)
-        else:
-            num_attribution = num_attribution_each
-        attribution_shapelets = np.zeros((num_attribution, length))
-        model.to(device)
-
-        for i in range(num_attribution):
-            if is_verbose:
-                print(f'{i + 1}/{num_attribution} using {xai_name} on {ds}')
-            target_sample = torch.from_numpy(train_x[i].reshape(1, -1, train_x.shape[-1])).float().to(device)
-            targeted_label = target_class
-            exp = explain(xai, xai_name, target_sample, targeted_label, sliding_window=(1, 5), baselines=None)
-            exp = exp.detach().cpu().clone().numpy().flatten()
-            attributions[i] = exp
-            starting = startings[i]
-            if isinstance(starting, list):
-                starting_instance = starting.copy()
-                if len(starting_instance) > 0:
-                    starting = starting_instance[0]
-                else:
-                    continue
-            attribution_shapelets[i] = exp[starting:starting + length]
+        attributions, attribution_shapelets = compute_attributions(
+            model, train_ds, xai_name, target_class, device, startings=startings, length=len(shapelet),
+            repeats=num_attribution_each or len(train_ds)
+        )
 
         if is_plot:
-            plot_multiple_images_with_attribution(train_x, preds, 4, (2, 2), (12, 6), use_attribution=True,
+            plot_multiple_images_with_attribution(train_ds, preds, 4, (12, 6),
+                                                  use_attribution=True,
                                                   attributions=attributions,
                                                   normalize_attribution=True,
                                                   save_path=f'{img_path}_{ds}')
@@ -288,23 +338,17 @@ def insert_data_to_env(model, shapelet, selected_datasets, inst_length, num_shap
             'attribution_shapelet': attribution_shapelets,
         }
         dataset_attr[ds] = attributions
-        with open(os.path.join(save_dir, xai_name, f'{ds}.pkl'), 'wb') as f:
-            pickle.dump(attribution_save, f)
-
+        pickle_save_to_file(data=attribution_save, file_path=os.path.join(save_dir, xai_name, f'{ds}.pkl'))
     return dataset_attr, insert_shapelet_percentage
 
 
-def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cuda', is_z_norm=True):
+def get_bg_pred(model, selected_datasets, inst_length, target_class, device='cuda', is_z_norm=True, repeat_max=100):
     bg_per = {}
     model.to(device)
     for ds in selected_datasets:
-        train_x, test_x, train_y, test_y, enc1 = read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
-        train_x = interpolate_along_last_axis(train_x[:100], inst_length=inst_length)
-        if is_z_norm:
-            train_x = z_normalization(train_x)
-        GP_preds_c0 = model(torch.from_numpy(train_x).float().to(device)).detach().cpu().numpy()
-        predict_as_0 = np.count_nonzero(np.argmax(GP_preds_c0, axis=1) == target_class)
-        percentage = predict_as_0 / len(train_x)
+        train_ds = prepare_dataset(ds, inst_length, is_z_norm=True, repeat_max=repeat_max)
+
+        preds, percentage = get_pred_with_acc(model, train_ds, target_class, device)
         bg_per[ds] = percentage
 
     return bg_per
@@ -316,102 +360,146 @@ def get_attr(model, data, startings, length, save_dir, xai_name='DeepLift', targ
         path_only = os.path.split(save_dir)[0]
         if path_only and not os.path.isdir(path_only):
             os.makedirs(path_only, exist_ok=True)
-    if repeats is None:
-        repeats = len(data)
-    if startings is not None:
-        attribution_shapelet = np.zeros((repeats, length))
-    else:
-        attribution_shapelet = None
-    attributions = np.zeros((repeats, data.shape[-1]))
-    xai_ref = get_xai_ref(xai_name)
-    xai = xai_ref(model)
-    model.to(device)
-    target_class_marker = target_class if target_class is not None else 'pred'
-    for i in range(repeats):
-        target_sample = torch.from_numpy(data[i].reshape(1, -1, data.shape[-1])).float().to(device)
-
-        if target_class is not None:
-            target_label = target_class
-        else:
-            target_label = torch.argmax(model(target_sample)).item()
-        exp = explain(xai, xai_name, target_sample, target_label, sliding_window=(1, 5), baselines=None)
-        exp = exp.detach().cpu().clone().numpy().flatten()
-
-        attributions[i] = exp
-        if startings is not None:
-            starting = startings[i]
-            attribution_shapelet[i] = exp[starting:starting + length]
+    attributions, attribution_shapelets = compute_attributions(
+        model, data, xai_name, target_class, device, startings, length, repeats
+    )
 
     if save_dir is not None:
         attr = {
-            'target_class': target_class_marker,
+            'target_class': target_class or 'pred',
             'xai_name': xai_name,
             'attributions': attributions,
-            'attribution_shapelet': attribution_shapelet
+            'attribution_shapelet': attribution_shapelets
         }
-        with open(os.path.join(save_dir), 'wb') as f:
-            pickle.dump(attr, f)
-    return attributions, attribution_shapelet #,  attr,
+        pickle_save_to_file(data=attr, file_path=save_dir)
+    return attributions, attribution_shapelets  # ,  attr,
 
 
-def get_pdata(shapelet, selected_datasets, inst_length, num_shapelet=1, is_add=False, repeat_max=None,
-              is_z_norm=True,
-              is_blending=False, blend_length=5,
-              is_best_insert=False,
-              save_dir='probe/GunPoint'):
+def insert_multiple_shapelets(train_ds, shapelets, is_add, is_blending, blend_length, is_best_insert):
     """
-    This function insert shapelet into selected datasets' training data, and create two datasets,
-        one is insertion with shapelet
-        another one is without insertion
-        support multiple insertion.
-        selected datasets where first interpolate into inst_length
-    :param shapelet: inserted shapelet
-    :param selected_datasets: the datasets that selected to insert
-    :param inst_length: dataset instance length that interpolate into
-    :param num_shapelet: number of shapelet
-    :param is_add: are we adding the shapelet on the top of instance or insert the shapelet
-    :param repeat_max: each dataset's maximum instance
-    :param is_z_norm: do instance or not
-    :param save_dir: the position we want to save the data
-    :return: a dictionary that contains with shapelet and without shapelet.
-    """
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
+    Inserts multiple shapelets into the training dataset.
 
-    length = len(shapelet)
-    pdata_ws = np.empty((0, 1, inst_length))
-    pdata_wos = np.empty((0, 1, inst_length))
+    :param train_ds: Training dataset (numpy array)
+    :param shapelets: List of shapelets to insert
+    :param is_add: Whether to add the shapelet or replace data with it
+    :param is_blending: Whether to blend shapelet into the data
+    :param is_best_insert: Whether to insert at the best location
+    :param blend_length: Blending length
+    :return: Modified training dataset and list of starting positions
+    """
+    len_train = len(train_ds)
+    num_shapelets = len(shapelets)
+    # Determine shapelet assignment
+    if num_shapelets == 1:
+        shapelet_order = np.array(shapelets*len_train)
+
+    elif len_train > num_shapelets:
+        # Assign each shapelet approximately equal times
+        repetitions = len_train // num_shapelets
+        remaining = len_train % num_shapelets
+        shapelet_order = (
+            np.concatenate((shapelets * repetitions, np.random.choice(shapelets, remaining, replace=False)))
+        )
+    else:
+        # Randomly assign shapelets to instances
+        shapelet_order = np.random.choice(shapelets, size=len_train, replace=True)
+
+    # Shuffle shapelet indices to ensure randomness
+    np.random.shuffle(shapelet_order)
+
+    # Insert shapelets
+
+    startings_data = []
+    shapelet_lengths = []
+    for i, shapelet in enumerate(shapelet_order):
+        shapelet_length = len(shapelet)
+        # print(shapelet_length, shapelet)
+        train_ds[i], starting_pos = data_given_env_multiple_shapelet(
+            train_ds[i:i + 1],  # Process one instance at a time
+            shape1=shapelet,
+            num_shapelet=1,  # Always insert 1 shapelet to one instance
+            is_add=is_add,
+            is_blending=is_blending,
+            is_best_insert=is_best_insert,
+            blend_length=blend_length
+        )
+        startings_data.append(starting_pos)
+        shapelet_lengths.append(shapelet_length)
+    return train_ds, startings_data, shapelet_lengths
+
+
+def get_pdata(
+        shapelet, selected_datasets, inst_length, num_shapelet=1, is_add=False,
+        repeat_max=None, is_z_norm=True, is_blending=False, blend_length=5, insert_fixed_starting=None,
+        is_best_insert=False, save_dir='probe/GunPoint'
+):
+    """
+    Inserts a shapelet into selected datasets and creates datasets with and without the shapelet.
+    """
+    pdata_with_shapelet = []
+    pdata_without_shapelet = []
     startings = []
-    for ds in selected_datasets:
-        # if ds == 'GunPoint':
-        #     continue
-        train_ds, test_x, train_y, test_y, enc1 = utils.read_UCR_UEA(dataset=ds, UCR_UEA_dataloader=None)
 
-        if repeat_max is None:
-            repeat_max = len(train_ds)
-        print(f'dealing with {ds}:', train_ds.shape)
-        train_ds = utils.interpolate_along_last_axis(train_ds[:repeat_max], inst_length=inst_length)
+    for dataset in selected_datasets:
+        # Prepare dataset
+        train_ds = prepare_dataset(dataset, inst_length, is_z_norm, repeat_max)
+
+        # Save without shapelet
+        pdata_without_shapelet.append(train_ds.copy())
+
+        # Insert shapelet
+        if isinstance(shapelet, list):
+            train_ds_with_shapelet, startings_data, shapelet_lengths = insert_multiple_shapelets(
+                train_ds,
+                shapelet,
+                is_add=is_add,
+                is_blending=is_blending,
+                is_best_insert=is_best_insert,
+                blend_length=blend_length,
+            )
+        elif insert_fixed_starting is not None:
+            shift =True
+            train_ds_with_shapelet, startings_data = insert_fixed(
+                train_ds,
+                shapelet,
+                insert_fixed_starting,
+                is_add=is_add,
+                is_blending=is_blending,
+                blend_length=blend_length,
+                shift=shift,
+            )
+            shapelet_lengths = len(shapelet)
+        else:
+            train_ds_with_shapelet, startings_data = data_given_env_multiple_shapelet(
+                train_ds,
+                shape1=shapelet,
+                num_shapelet=num_shapelet,
+                is_add=is_add,
+                is_blending=is_blending,
+                is_best_insert=is_best_insert,
+                blend_length=blend_length
+            )
+            shapelet_lengths = len(shapelet)
+        # Normalize after insertion
         if is_z_norm:
-            train_ds = utils.z_normalization(train_ds)
-        pdata_wos = np.concatenate((pdata_wos, train_ds), axis=0)
-        train_ds, startings_data = data_given_env_multiple_shapelet(train_ds, shape1=shapelet,
-                                                                    num_shapelet=num_shapelet, is_add=is_add,
-                                                                    is_blending=is_blending,
-                                                                    is_best_insert=is_best_insert,
-                                                                    blend_length=blend_length)
-        if is_z_norm:
-            train_ds = utils.z_normalization(train_ds)
-        pdata_ws = np.concatenate((pdata_ws, train_ds), axis=0)
-        startings += startings
+            train_ds_with_shapelet = utils.z_normalization(train_ds_with_shapelet)
+
+        pdata_with_shapelet.append(train_ds_with_shapelet)
+        startings.extend(startings_data)
+
+    # Concatenate all datasets
+    pdata_with_shapelet = np.concatenate(pdata_with_shapelet, axis=0)
+    pdata_without_shapelet = np.concatenate(pdata_without_shapelet, axis=0)
+
+    # Save to file
     pdata = {
-        'pdata_ws': pdata_ws,
-        'pdata_wos': pdata_wos,
+        'pdata_ws': pdata_with_shapelet,
+        'pdata_wos': pdata_without_shapelet,
         'startings': startings,
         'shapelet': shapelet,
-        'length': length,
+        'length': shapelet_lengths
     }
 
-    with open(os.path.join(save_dir, 'pdata.pkl'), 'wb') as f:
-        pickle.dump(pdata, f)
-
+    # save_dir = os.path.join(save_dir, 'pdata.pkl')
+    pickle_save_to_file(pdata, save_dir)
     return pdata

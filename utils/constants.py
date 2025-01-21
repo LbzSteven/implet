@@ -23,7 +23,28 @@ selected_uni = [
     "Strawberry"
 ]
 
-
+selected_training = [
+    "ACSF1",
+    "StandWalkJump",
+    "NonInvasiveFetalECGThorax2",
+    "Adiac",
+    "ArrowHead",
+    "BeetleFly",
+    "Phoneme",
+    "UWaveGestureLibraryZ",
+    "UWaveGestureLibraryY",
+    "Lightning2",
+    "Coffee",
+    "TwoLeadECG",
+    "WormsTwoClass",
+    "CricketY",
+    "Meat",
+    "BirdChicken",
+    "FaceFour",
+    "ECGFiveDays",
+    "Worms",
+    "StarLightCurves",
+]
 
 
 

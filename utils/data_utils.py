@@ -18,7 +18,7 @@ def z_normalization(array):
 def convert_to_label_if_one_hot(input_data):
     if isinstance(input_data, np.ndarray):
         if input_data.ndim > 1:
-            return np.argmax(input_data, axis=-1)
+            return np.argmax(input_data, axis=1)
         else:
             return input_data
     if isinstance(input_data, list):

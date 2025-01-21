@@ -13,6 +13,8 @@ from tsai.models.MLP import MLP
 from tsai.models.FCN import FCN
 from tsai.models.ResNet import ResNet
 
+from utils.data_utils import convert_to_label_if_one_hot
+
 
 def model_init(model_name, in_channels, n_pred_classes, seq_len=None):
     # n_pred_classes = train_y.shape[1]
@@ -107,6 +109,21 @@ def get_all_preds_prob(model, loader, device):
             labels = labels + label.tolist()
 
     return np.concatenate(all_preds, axis=0), labels
+
+def get_pred_with_acc(model, data, target_class, device='cuda'):
+    """Run model predictions and calculate percentage of target class here target class is a"""
+    model.to(device)
+    data_tensor = torch.from_numpy(data).float().to(device)
+    preds = model(data_tensor).detach().cpu().numpy()
+    preds = np.argmax(preds, axis=1)
+    target_class = convert_to_label_if_one_hot(target_class)
+    if len(target_class) == 1:
+
+        predict_as_target = np.count_nonzero(preds == target_class)
+        percentage = predict_as_target / len(data)
+    else:
+        percentage = accuracy_score(target_class, preds)
+    return preds, percentage
 
 
 def get_hidden_layers(model, hook_block, data, device='cuda'):
