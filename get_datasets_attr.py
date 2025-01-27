@@ -34,7 +34,7 @@ def get_real_datasets_attr(model_type, dataset, xai_name, attr_class=None):
     test_y_pred = np.load(f'{model_path}/test_preds.npy')
     train_y_pred = np.load(f'{model_path}/train_preds.npy')
 
-    attr_save_dir = f'attributions/{dataset}/{xai_name}/' if (attr_class is None) \
+    attr_save_dir = f'attributions/{model_type}/{dataset}/{xai_name}/' if (attr_class is None) \
         else f'attributions/{dataset}_class_{str(attr_class)}/{xai_name}/'
 
     attr_gp, _ = get_attr(model, test_x, None, None,
