@@ -7,6 +7,23 @@ from dtaidistance import dtw_ndim
 from sklearn.metrics import silhouette_score
 
 
+# class Implet:
+#     def __init__(self, sample_id, implet_vals, implet_attr, score, start_loc, end_loc):
+#         self.sample_id = sample_id
+#         self.implet_vals = implet_vals
+#         self.implet_attr = implet_attr
+#         self.score = score
+#         self.start_loc = start_loc
+#         self.end_loc = end_loc
+#
+#     def __repr__(self):
+#         s = 'Implet('
+#         s += ', '.join([f'{k}={self.__dict__[k]}'
+#                         for k in ['sample_id', 'start_loc', 'end_loc', 'score']])
+#         s += ')'
+#         return s
+
+
 def _normalize_implets(implets: List[np.ndarray]):
     """
     Normalize each channel of the implets independently.
@@ -158,8 +175,13 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
                                                                               threshold=threshold)
             if best_end != -1:
                 implets.append(
-                    [i, inst[best_start:best_end+1], attr[i, best_start:best_end+1], max_score, best_start,
+                    [i, inst[best_start:best_end + 1], attr[i, best_start:best_end + 1], max_score, best_start,
                      best_end])
+                # implets.append(Implet(i,
+                #                       inst[best_start:best_end + 1],
+                #                       attr[i, best_start:best_end + 1],
+                #                       float(max_score),
+                #                       best_start, best_end))
                 starting = best_end + 1
             else:
                 starting += 1
