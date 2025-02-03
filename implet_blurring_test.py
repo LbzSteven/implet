@@ -8,6 +8,7 @@ from sklearn.metrics import accuracy_score
 from tsai.models.FCN import FCN
 from tsai.models.InceptionTime import InceptionTime
 
+from utils import pickle_save_to_file
 from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
@@ -75,8 +76,18 @@ for model_name in model_names:
 
             # compute implets
             implets_class0 = implet_extractor(test_x, test_y, attr_test, target_class=0)
-            implets_class1 = implet_extractor(test_y, test_y, attr_test, target_class=1)
+            implets_class1 = implet_extractor(test_x, test_y, attr_test, target_class=1)
             implets = implets_class0 + implets_class1
+
+            # implets_list = {
+            #     'implets': implets,
+            #     'implets_class0': implets_class0,
+            #     'implets_class1': implets_class1,
+            # }
+            # implets_save_dir = f'./output/{model_name}/{task}/{explainer}'
+            # pickle_save_to_file(data=implets,
+            #                     file_path=os.path.join(implets_save_dir, 'implets.pkl'))
+
 
             # modify samples
             test_x_overwritten = []
