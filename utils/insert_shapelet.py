@@ -535,7 +535,7 @@ def _generate_smooth_signal(start, end, start_gradient, end_gradient, y_min=None
         np.random.seed(random_seed)
 
     # Generate random control points
-    num_control_points = max(num_points // 10, 3)  # Ensure at least 3 control points
+    num_control_points = max(num_points // 10, 4)  # Ensure at least 3 control points
     x_control = np.linspace(0, 1, num_control_points)
     y_control = y_std * np.random.rand(num_control_points) + y_mean
 
