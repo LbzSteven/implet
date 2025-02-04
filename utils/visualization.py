@@ -8,7 +8,7 @@ import matplotlib.colorbar as cbar
 import matplotlib.colors as mcolors
 import seaborn as sns
 import numpy as np
-
+import pandas
 from utils.data_utils import convert_to_label_if_one_hot
 from utils.utils import create_path_if_not_exists
 
@@ -198,13 +198,12 @@ def plot_multiple_images_with_attribution(test_x, pred_y, n, figsize=(12, 6), us
         figsize = (num_rol_col * 3, num_rol_col * 8)
 
     fig, axes = plt.subplots(shape[0], shape[1], figsize=figsize)
-    if n>1:
+    if n > 1:
         axes = axes.flatten()  # Flatten axes for easy iteration
     else:
         axes = [axes]
     # Define different colors for different labels
     colors = ['b', 'r', 'g', 'c', 'm', 'y', 'k']  # Customize as needed
-
 
     # Create a color palette for the heatmap if attributions are used
     my_cmap = sns.diverging_palette(260, 10, as_cmap=True)
@@ -320,7 +319,8 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
         norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
         # plot members
         for t, i in enumerate(cluster_indices[j]):
-            plot(implets[i][:, 0] + t/len(cluster_indices[j]) * (ymax - ymin), implets[i][:, 1], norm, axs[j], alpha=0.75)
+            plot(implets[i][:, 0] + t / len(cluster_indices[j]) * (ymax - ymin), implets[i][:, 1], norm, axs[j],
+                 alpha=0.75)
         # plot centroid
         if len(centroids[0].shape) == 1:  # 1d clustering
             axs[j].plot(centroids[j], lw=3, c='gray')
@@ -336,5 +336,79 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
         axs[j].set_title(f'members: {str(cluster_indices[j])}')
         axs[j].autoscale()
         # axs[j].set_ylim(lim_y_min, lim_y_max)
+    plt.tight_layout()
+    _save_or_show(save_path)
+
+
+def plot_implet_clusters_with_instances(implets, instances,
+                                        figsize=None, save_path=None):
+    """
+    :param implets: list of array of shape (seq_len, 2), where the first dim is
+    features, second dim is importance
+    :param instances list of instances that the implets from: each shape as (len)
+
+    cluster
+    """
+    # print(implets, instances)
+    if figsize is None:
+        figsize = (6.0, 4.0)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+
+    for instance in instances:
+        plt.plot(instance.flatten(), color='gray', alpha=0.60)
+    # normalize importance coloring based on max(abs(importance))
+    attrs = np.concatenate([np.abs(imp[1]).flatten() for imp in implets])
+    extremum = np.mean(attrs) + 3 * np.std(attrs)
+    norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
+
+    def plot(y, v, norm, start, alpha=1.0, lw=1.0):
+        x = np.arange(len(y))+start
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        lc = LineCollection(segments, cmap='coolwarm', ) #norm=norm
+        lc.set_array(v)
+        lc.set_alpha(alpha)
+        lc.set_linewidths(lw)
+        ax.add_collection(lc)
+        ax.autoscale()
+
+    for implet in implets:
+        inst_num, sub_inst, sub_attr, max_score, best_start, best_end = implet
+        # print(result)
+
+        # plt.plot(np.arange(best_start, best_end + 1), sub_inst.flatten(), color='orange')
+
+
+
+            # plot members
+        plot(sub_inst.flatten(), sub_attr.flatten(), norm, best_start, alpha=0.75)
+
+
+    # y-scale limits
+    # ymin = min([np.min(imp[0]) for imp in implets])
+    # ymax = max([np.max(imp[0]) for imp in implets])
+    # lim_y_min = ymin - (ymax - ymin) * 0.1
+    # lim_y_max = ymax + (ymax - ymin) * 0.1
+    #
+
+    #
+    # for j in range(k):
+    #     attrs = np.concatenate([np.abs(implets[i][:, 1]).flatten() for i in cluster_indices[j]])
+    #     extremum = np.mean(attrs) + 3 * np.std(attrs)
+    #     norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
+    #     # plot members
+    #     for t, i in enumerate(cluster_indices[j]):
+    #         plot(implets[i][:, 0] + t/len(cluster_indices[j]) * (ymax - ymin), implets[i][:, 1], norm, axs[j], alpha=0.75)
+    #     # plot centroid
+    #
+    #     # add colorbar
+    #     sm = plt.cm.ScalarMappable(cmap='coolwarm', norm=norm)
+    #     sm.set_array([])  # Set an empty array for ScalarMappable
+    #     # Add the color bar to the figure
+    #     cbar = fig.colorbar(sm, ax=axs[j])
+    #
+    #     axs[j].set_title(f'members: {str(cluster_indices[j])}')
+    #     axs[j].autoscale()
+    #     # axs[j].set_ylim(lim_y_min, lim_y_max)
     plt.tight_layout()
     _save_or_show(save_path)
