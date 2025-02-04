@@ -19,7 +19,7 @@ device = torch.device("cpu")
 
 model_names = ['InceptionTime']
 tasks = ['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-         "Strawberry"]
+         ] # "Strawberry"
 xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
              'Saliency']
 
