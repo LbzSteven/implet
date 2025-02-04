@@ -15,7 +15,12 @@ from utils.insert_shapelet import insert_random, overwrite_shaplet_random
 
 device = torch.device("cpu")
 
-model_names = ['InceptionTime']
+# if there's multiple implet in a sample
+# if 'single', replace each implet individually
+# if 'all', replace all implets on the same sample
+mode = 'all'
+
+model_names = ['FCN', 'InceptionTime']
 tasks = ['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
          "Strawberry"]
 xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
@@ -23,7 +28,7 @@ xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusio
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = 'output/blurring_test.csv'
+result_path = f'output/blurring_test_{mode}.csv'
 if os.path.isfile(result_path):
     result = pd.read_csv(result_path).values.tolist()
 else:
@@ -65,8 +70,15 @@ for model_name in model_names:
 
 
         # load dataset
-        _, test_x, _, test_y, _ = read_UCR_UEA(task, None)
-        test_y = np.argmax(test_y, axis=1)
+        _, x_test, _, y_test, _ = read_UCR_UEA(task, None)
+        y_test = np.argmax(y_test, axis=1)
+
+        # run prediction on unmodified samples
+        y_pred = predict(x_test)
+        acc = accuracy_score(y_test, y_pred)
+        entry = [model_name, task, None, 'ori', acc]
+        print(entry)
+        result.append(entry)
 
         for explainer in xai_names:
             # load attributions
@@ -75,8 +87,8 @@ for model_name in model_names:
             attr_test = attr['attributions']
 
             # compute implets
-            implets_class0 = implet_extractor(test_x, test_y, attr_test, target_class=0)
-            implets_class1 = implet_extractor(test_x, test_y, attr_test, target_class=1)
+            implets_class0 = implet_extractor(x_test, y_test, attr_test, target_class=0)
+            implets_class1 = implet_extractor(x_test, y_test, attr_test, target_class=1)
             implets = implets_class0 + implets_class1
 
             # implets_list = {
@@ -88,40 +100,55 @@ for model_name in model_names:
             # pickle_save_to_file(data=implets,
             #                     file_path=os.path.join(implets_save_dir, 'implets.pkl'))
 
+            for _ in range(n_trials):
+                # modify samples
+                if mode == 'single':
+                    x_test_overwritten = []
+                    x_test_rand_insert = []
 
-            # modify samples
-            test_x_overwritten = []
-            test_x_rand_insert = []
-            for implet in implets:
-                i, _, _, _, start_loc, end_loc = implet
-                implet_len = end_loc - start_loc + 1
-                sample = test_x[i].flatten()
-                for _ in range(n_trials):
-                    sample_overwritten = overwrite_shaplet_random(sample, start_loc, implet_len)
-                    sample_overwritten = sample_overwritten[np.newaxis]
-                    test_x_overwritten.append(sample_overwritten)
+                    for implet in implets:
+                        i, _, _, _, start_loc, end_loc = implet
+                        implet_len = end_loc - start_loc + 1
+                        sample = x_test[i].flatten()
 
-                    sample_rand_insert = insert_random(sample, implet_len)
-                    sample_rand_insert = sample_rand_insert[np.newaxis]
-                    test_x_rand_insert.append(sample_rand_insert)
+                        sample_overwritten = overwrite_shaplet_random(sample, start_loc, implet_len)
+                        sample_overwritten = sample_overwritten[np.newaxis]
+                        x_test_overwritten.append(sample_overwritten)
 
-            test_x_overwritten = np.array(test_x_overwritten)
-            test_x_rand_insert = np.array(test_x_rand_insert)
+                        sample_rand_insert = insert_random(sample, implet_len)
+                        sample_rand_insert = sample_rand_insert[np.newaxis]
+                        x_test_rand_insert.append(sample_rand_insert)
 
-            y_true = np.array([test_y[i] for i, _, _, _, _, _ in implets])
-            y_true = np.repeat(y_true, n_trials)
+                    x_test_overwritten = np.array(x_test_overwritten)
+                    x_test_rand_insert = np.array(x_test_rand_insert)
 
-            # compute accuracies
-            for method, x in zip(['ori', 'repl_implet', 'repl_random_loc'],
-                                 [test_x, test_x_overwritten, test_x_rand_insert]):
-                y_pred = predict(x)
-                if y_pred.shape == test_y.shape:
-                    acc = accuracy_score(test_y, y_pred)
+                    y_true = np.array([y_test[i] for i, _, _, _, _, _ in implets])
+
+                elif mode == 'all':
+                    x_test_overwritten = x_test.copy()
+                    x_test_rand_insert = x_test.copy()
+
+                    for implet in implets:
+                        i, _, _, _, start_loc, end_loc = implet
+                        implet_len = end_loc - start_loc + 1
+
+                        x_test_overwritten[i] = overwrite_shaplet_random(
+                            x_test_overwritten[i].flatten(), start_loc, implet_len)[np.newaxis]
+                        x_test_rand_insert[i] = insert_random(
+                            x_test_rand_insert[i].flatten(), implet_len)[np.newaxis]
+
+                    y_true = y_test
                 else:
+                    raise ValueError
+
+                # compute accuracies
+                for method, x in zip(['repl_implet', 'repl_random_loc'],
+                                     [x_test_overwritten, x_test_rand_insert]):
+                    y_pred = predict(x)
                     acc = accuracy_score(y_true, y_pred)
-                entry = [model_name, task, explainer, method, acc]
-                print(entry)
-                result.append(entry)
+                    entry = [model_name, task, explainer, method, acc]
+                    print(entry)
+                    result.append(entry)
 
         df = pd.DataFrame(result, columns=['model_name', 'task_name', 'xai_name', 'method', 'acc_score'])
         df.to_csv(result_path, index=False)
