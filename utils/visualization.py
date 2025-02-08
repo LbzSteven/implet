@@ -341,7 +341,7 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
 
 
 def plot_implet_clusters_with_instances(implets, instances,
-                                        figsize=None, save_path=None):
+                                        figsize=None, save_path=None, title=None):
     """
     :param implets: list of array of shape (seq_len, 2), where the first dim is
     features, second dim is importance
@@ -365,7 +365,7 @@ def plot_implet_clusters_with_instances(implets, instances,
         x = np.arange(len(y))+start
         points = np.array([x, y]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
-        lc = LineCollection(segments, cmap='coolwarm', ) #norm=norm
+        lc = LineCollection(segments, cmap='coolwarm', norm=norm)
         lc.set_array(v)
         lc.set_alpha(alpha)
         lc.set_linewidths(lw)
@@ -381,6 +381,7 @@ def plot_implet_clusters_with_instances(implets, instances,
 
 
             # plot members
+        # print(sub_attr)
         plot(sub_inst.flatten(), sub_attr.flatten(), norm, best_start, alpha=0.75)
 
 
@@ -408,7 +409,9 @@ def plot_implet_clusters_with_instances(implets, instances,
     #     cbar = fig.colorbar(sm, ax=axs[j])
     #
     #     axs[j].set_title(f'members: {str(cluster_indices[j])}')
-    #     axs[j].autoscale()
+    #     axs[j].autoscale()l
     #     # axs[j].set_ylim(lim_y_min, lim_y_max)
+    plt.title(title,fontsize=20)
     plt.tight_layout()
+
     _save_or_show(save_path)

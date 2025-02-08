@@ -137,7 +137,7 @@ def max_score_subsequence(arr, left, lamb, threshold, kmin=None, kmax=None):
     return arr[best_start:best_end + 1], max_score, best_start, best_end
 
 
-def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False, thresh_factor=1):
+def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False, thresh_factor=1, is_attr_abs=True):
     """
     extract implets from a dataset with a computed threshold. This method iterate through instances in datasets and put them into
     max_score_subsequence to find the subseuqnece that with the largest subsequence with each starting points.
@@ -147,6 +147,7 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
     :param attr: the attribution of time series instance
     :param target_class: if we only select part of data and extract labels
     :param lamb: lambda that used for max_score_subsequence
+    :param is_attr_abs: control if using the absolute value of attribution
     :return: a dictionary [instance_number, the subsequence, the corresponding attribution,
                             sum of attribution, starting position, ending position]
 
@@ -155,8 +156,14 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
     num = len(train_x)
     global_threshold = None
     if is_global_threshold:
-        avg = np.mean(np.abs(attr))
-        std = np.std(np.abs(attr))
+        if is_attr_abs:
+            avg = np.mean(np.abs(attr))
+            std = np.std(np.abs(attr))
+        else:
+            avg = np.mean(attr)
+            std = np.std(attr)
+        # avg = np.mean(np.abs(attr))
+        # std = np.std(np.abs(attr))
         global_threshold = avg + 1 * std
 
     for i in range(num):
@@ -164,14 +171,17 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
         if target_class is not None and train_y[i] != target_class:
             continue
         starting = 0
-        abs_attr = np.abs(attr[i].flatten())
-        avg = np.mean(abs_attr)
-        std = np.std(abs_attr)
-        # threshold = avg + 1 * std if not is_global_threshold else global_threshold
-        threshold = avg + thresh_factor * std
+        # abs_attr = np.abs(attr[i].flatten())
+        input_attr = np.abs(attr[i].flatten()) if is_attr_abs else attr[i].flatten()
+
+        avg = np.mean(input_attr)
+        std = np.std(input_attr)
+        threshold = global_threshold if is_global_threshold else avg + 1 * std
+        # threshold = avg + thresh_factor * std
+        # print(threshold)
         # threshold = avg + 0.6 * std
-        while starting < len(abs_attr):
-            sub_attr, max_score, best_start, best_end = max_score_subsequence(arr=abs_attr, left=starting, lamb=lamb,
+        while starting < len(input_attr):
+            sub_attr, max_score, best_start, best_end = max_score_subsequence(arr=input_attr, left=starting, lamb=lamb,
                                                                               threshold=threshold)
             if best_end != -1:
                 implets.append(
