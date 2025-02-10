@@ -18,7 +18,8 @@ device = torch.device("cpu")
 # if there's multiple implet in a sample
 # if 'single', replace each implet individually
 # if 'all', replace all implets on the same sample
-mode = 'all'
+# modes = ['single', 'all', 'single_pos_only', 'all_pos_only']
+mode = 'single'
 
 model_names = ['FCN', 'InceptionTime']
 tasks = ['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
@@ -28,7 +29,7 @@ xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusio
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = f'output/blurring_test_{mode}.csv'
+result_path = f'output/blurring_test_{mode}_pos_only.csv'
 if os.path.isfile(result_path):
     result = pd.read_csv(result_path).values.tolist()
 else:
