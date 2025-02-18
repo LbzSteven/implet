@@ -21,11 +21,23 @@ plt.figure(dpi=300)
 
 for model_name in model_names:
     for xai_name in xai_names:
-        sns.barplot(df[(df['model_name'] == model_name) & (df['xai_name_x'] == xai_name)],
+        ax = sns.barplot(df[(df['model_name'] == model_name) & (df['xai_name_x'] == xai_name)],
                     x='task_name', y='acc_drop', hue='tag')
+
+        bars = ax.patches  # Get all bars
+        for i, bar in enumerate(bars):
+            if (i // 6) % 2 == 1:  # Apply to odd-numbered bars in each group
+                bar.set_edgecolor(plt.get_cmap('tab10')((i // 6) // 2))
+                bar.set_facecolor('none')
+                bar.set_hatch('//')
+            else:
+                bar.set_facecolor(plt.get_cmap('tab10')((i // 6) // 2))
+
         plt.ylim(-0.105, 0.505)
         plt.title(f'{model_name}, {xai_name}')
         plt.xticks(rotation=70)
         plt.tight_layout()
         plt.savefig(f'figure/half_dataset/{model_name}_{xai_name}.png')
         plt.clf()
+
+
