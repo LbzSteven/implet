@@ -341,7 +341,7 @@ def plot_implet_clusters(implets, cluster_indices, centroids,
 
 
 def plot_implet_clusters_with_instances(implets, instances,
-                                        figsize=None, save_path=None, title=None):
+                                        figsize=None, save_path=None, title=None,norm=None):
     """
     :param implets: list of array of shape (seq_len, 2), where the first dim is
     features, second dim is importance
@@ -359,7 +359,7 @@ def plot_implet_clusters_with_instances(implets, instances,
     # normalize importance coloring based on max(abs(importance))
     attrs = np.concatenate([np.abs(imp[1]).flatten() for imp in implets])
     extremum = np.mean(attrs) + 3 * np.std(attrs)
-    norm = mcolors.Normalize(vmin=-extremum, vmax=extremum)
+    norm = mcolors.Normalize(vmin=-extremum, vmax=extremum) if norm is None else norm
 
     def plot(y, v, norm, start, alpha=1.0, lw=1.0):
         x = np.arange(len(y))+start
@@ -412,6 +412,57 @@ def plot_implet_clusters_with_instances(implets, instances,
     #     axs[j].autoscale()l
     #     # axs[j].set_ylim(lim_y_min, lim_y_max)
     plt.title(title,fontsize=20)
+    plt.tight_layout()
+
+    _save_or_show(save_path)
+
+    return norm
+
+
+def visual_attribution(inst, attr, norm=None, alpha=1.0, lw=1.0, save_path=None, figsize=None, title=None):
+    if figsize is None:
+        figsize = (6.0, 4.0)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+    extremum = np.mean(attr) + 3 * np.std(attr)
+    norm = mcolors.Normalize(vmin=-extremum, vmax=extremum) if norm is None else norm
+    # norm = mcolors.Normalize(vmin=0, vmax=1, clip=True)
+    def plot(y, v, norm, alpha=1.0, lw=1.0):
+        x = np.arange(len(y))
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        lc = LineCollection(segments, cmap='coolwarm', norm=norm)
+
+
+
+
+        lc.set_array(v)
+        lc.set_alpha(alpha)
+        lc.set_linewidths(lw)
+        ax.add_collection(lc)
+        ax.autoscale()
+
+        # sm = plt.cm.ScalarMappable(cmap='coolwarm', norm=norm)
+        # sm.set_array([])
+        # cbar = plt.colorbar(sm, orientation='horizontal', ax=ax)
+        # cbar.set_label('Value Range')
+
+    plot(inst.flatten(), attr.flatten(), norm, alpha=alpha,lw=lw)
+
+    plt.title(title, fontsize=20)
+    plt.tight_layout()
+
+    _save_or_show(save_path)
+
+    return norm,extremum
+
+def visual_inst(inst, save_path=None, figsize=None, title=None):
+    if figsize is None:
+        figsize = (6.0, 4.0)
+    fig, ax = plt.subplots(figsize=figsize, dpi=300)
+    plt.plot(inst.flatten(), color='gray', alpha=0.60)
+
+
+    plt.title(title, fontsize=20)
     plt.tight_layout()
 
     _save_or_show(save_path)
