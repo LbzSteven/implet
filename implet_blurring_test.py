@@ -92,14 +92,14 @@ for model_name in model_names:
             implets_class1 = implet_extractor(x_test, y_test, attr_test, target_class=1)
             implets = implets_class0 + implets_class1
 
-            # implets_list = {
-            #     'implets': implets,
-            #     'implets_class0': implets_class0,
-            #     'implets_class1': implets_class1,
-            # }
-            # implets_save_dir = f'./output/{model_name}/{task}/{explainer}'
-            # pickle_save_to_file(data=implets,
-            #                     file_path=os.path.join(implets_save_dir, 'implets.pkl'))
+            implets_list = {
+                'implets': implets,
+                'implets_class0': implets_class0,
+                'implets_class1': implets_class1,
+            }
+            implets_save_dir = f'./output/{model_name}/{task}/{explainer}'
+            pickle_save_to_file(data=implets,
+                                file_path=os.path.join(implets_save_dir, 'implets.pkl'))
 
             for _ in range(n_trials):
                 # modify samples

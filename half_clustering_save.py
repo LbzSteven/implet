@@ -92,8 +92,8 @@ for model_name in model_names:
             attr_test = attr['attributions']
 
             attr_test = attr_test[indices]
-            first_half_attr = attr_test[len(attr_test) // 2:]
-            second_half_attr = attr_test[:len(attr_test) // 2]
+            first_half_attr = attr_test[:len(attr_test) // 2]
+            second_half_attr = attr_test[len(attr_test) // 2:]
             # print(first_half_y.shape, second_half_y.shape, first_half_x.shape, second_half_x.shape,first_half_attr.shape,second_half_attr.shape,)
         #
             # compute implets
