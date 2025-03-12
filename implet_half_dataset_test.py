@@ -12,18 +12,20 @@ from dtaidistance.subsequence.dtw import subsequence_alignment
 from utils import pickle_load_from_file
 from utils.implet_extactor import implet_extractor
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
+from utils.constants import tasks_new,tasks
 
 device = torch.device("cpu")
 
 model_names = ['FCN', 'InceptionTime']
-tasks = ['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-         "Strawberry"]
+tasks_new.remove('Chinatown')
+tasks = tasks_new+tasks #tasks_new #['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+#"Strawberry"]
 # xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']
 xai_names = ['Saliency']
 
 # each row is [model_name, task_name, xai_name, method, implet_src, mode, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = f'output/half_dataset_test.csv'
+result_path = f'output/half_dataset_test_new.csv'
 if os.path.isfile(result_path):
     result = pd.read_csv(result_path).values.tolist()
 else:
@@ -82,7 +84,7 @@ for model_name in model_names:
                     ys = data['second_half_y']
                     ys = ys.squeeze()
 
-                    attrs = data['first_half_attr']
+                    attrs = data['second_half_attr'] # Ziwen: data['first_half_attr'] 03/12/2025 this has been corrected
                     attrs = attrs.squeeze()
 
                 # 1D centroid values
@@ -110,6 +112,7 @@ for model_name in model_names:
             # compute real implets
             implets_real = []
             for cls in range(2):
+                print(xs.shape, ys.shape, attrs.shape)
                 implets_real += implet_extractor(xs, ys, attrs, target_class=cls)
 
             # identify "implets" in the second half of the dataset

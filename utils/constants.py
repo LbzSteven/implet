@@ -48,6 +48,15 @@ selected_training = [
 
 
 
+tasks = ['GunPoint', "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+         ] #
+
+tasks_new = ['Coffee',"Chinatown", "Computers", "ECGFiveDays", "TwoLeadECG", "Lightning2", "FordA", "GunPointMaleVersusFemale",
+         ] # Spectral, traffic, even, ECG,ECG,sensor,sensor,HAR
+
+#  "CBF", "Meat" --> Three class
+
+
 
 xai_names = ['DeepLift',
              'IntegratedGradients',

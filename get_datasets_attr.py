@@ -31,8 +31,8 @@ def get_real_datasets_attr(model_type, dataset, xai_name, attr_class=None):
     state_dict = torch.load(f'{model_path}/weight.pt', map_location='cuda:1')
     model.load_state_dict(state_dict)
     model.eval()
-    test_y_pred = np.load(f'{model_path}/test_preds.npy')
-    train_y_pred = np.load(f'{model_path}/train_preds.npy')
+    # test_y_pred = np.load(f'{model_path}/test_preds.npy')
+    # train_y_pred = np.load(f'{model_path}/train_preds.npy')
 
     attr_save_dir = f'attributions/{model_type}/{dataset}/{xai_name}/' if (attr_class is None) \
         else f'attributions/{dataset}_class_{str(attr_class)}/{xai_name}/'

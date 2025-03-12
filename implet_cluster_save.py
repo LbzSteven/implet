@@ -12,15 +12,14 @@ from utils import pickle_save_to_file, plot_implet_clusters_with_instances
 from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor, implet_cluster_auto, implet_cluster
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
-
+from utils.constants import tasks_new
 k = None
 verbose = True
 device = torch.device("cpu")
 
-model_names = ['FCN','InceptionTime'] #,
-tasks = ['GunPoint'
-         ] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-xai_names = ['GuidedBackprop',  ] # 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency'
+model_names = ['InceptionTime'] #, 'FCN',
+tasks = tasks_new#['GunPointMaleVersusFemale']  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+xai_names = ['Saliency'] #  'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
 
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
@@ -28,7 +27,7 @@ xai_names = ['GuidedBackprop',  ] # 'InputXGradient', 'KernelShap', 'Lime', 'Occ
 result_path = 'output/blurring_test.csv'
 is_attr_abs = False
 is_vis_implet = True
-is_clustering = False
+is_clustering = True
 is_global_threshold = False
 if os.path.isfile(result_path):
     result = pd.read_csv(result_path).values.tolist()

@@ -33,7 +33,7 @@ for model_name in model_names:
         sns.barplot(df[(df['model_name'] == model_name) & (df['task_name'] == task)],
                     x='xai_name', y='total_coverage')
         plt.ylim(-0.05, 1.005)
-        plt.title(f'{model_name}, {xai_name}')
+        plt.title(f'{model_name}, {task}')
         plt.xticks(rotation=70)
         plt.tight_layout()
         plt.savefig(f'figure/implet_coverage/byTask/{model_name}_{task}.png')

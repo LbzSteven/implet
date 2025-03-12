@@ -12,15 +12,15 @@ from utils import pickle_save_to_file, plot_implet_clusters_with_instances
 from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor, implet_cluster_auto, implet_cluster
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
+from utils.constants import tasks_new, tasks
 
 k = None
 verbose = True
 device = torch.device("cpu")
 
-model_names = ['FCN','InceptionTime'] #,
-tasks = ['GunPoint', "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-         ] #
-xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency' ] #
+model_names = ['FCN', 'InceptionTime']  #,
+tasks = ['ECGFiveDays']  #tasks_new + tasks  #
+xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']  #
 
 np.random.seed(42)
 # each row is [model_name, task_name, xai_name, method, acc_score]
@@ -73,7 +73,7 @@ for model_name in model_names:
         # load dataset
         _, test_x, _, test_y, _ = read_UCR_UEA(task, None)
         test_y = np.argmax(test_y, axis=1)
-        print(test_x.shape)
+        # print(test_x.shape)
         indices = np.random.permutation(len(test_x))
 
         # Apply the same shuffle to both arrays
@@ -94,11 +94,18 @@ for model_name in model_names:
             attr_test = attr_test[indices]
             first_half_attr = attr_test[:len(attr_test) // 2]
             second_half_attr = attr_test[len(attr_test) // 2:]
+
+            # print(first_half_x.shape, second_half_x.shape, first_half_y.shape, second_half_y.shape,
+            #       first_half_attr.shape, second_half_attr.shape)
+            # input()
+
             # print(first_half_y.shape, second_half_y.shape, first_half_x.shape, second_half_x.shape,first_half_attr.shape,second_half_attr.shape,)
-        #
+            #
             # compute implets
-            implets_class0 = implet_extractor(first_half_x, first_half_y, first_half_attr, target_class=0, is_attr_abs=True, is_global_threshold=False)
-            implets_class1 = implet_extractor(second_half_x, second_half_y, first_half_attr, target_class=1, is_attr_abs=True, is_global_threshold=False)
+            implets_class0 = implet_extractor(first_half_x, first_half_y, first_half_attr, target_class=0,
+                                              is_attr_abs=True, is_global_threshold=False)
+            implets_class1 = implet_extractor(first_half_x, first_half_y, first_half_attr, target_class=1,
+                                              is_attr_abs=True, is_global_threshold=False)
             implets = implets_class0 + implets_class1
 
             implets_list = {
@@ -108,11 +115,11 @@ for model_name in model_names:
             implets_save_dir = f'./output/half_implet/{model_name}/{task}/{explainer}'
             pickle_save_to_file(data=implets_list,
                                 file_path=os.path.join(implets_save_dir, 'implets.pkl'))
-        #
-        #     # print(implet_with_attr, instances_num)
-        #
-        #
-        #
+            #
+            #     # print(implet_with_attr, instances_num)
+            #
+            #
+            #
             for implate_name, implets_class_i in implets_list.items():
                 num_implets = len(implets_class_i)
                 if is_vis_implet:
@@ -122,7 +129,8 @@ for model_name in model_names:
                     instances_num.sort()
                     # print(num_implets, implets_class_i, implets_class_i[0][1].shape, implets_class_i[0][2].shape)
                     save_path = f'./{implets_save_dir}/{implate_name}_vis.png'
-                    plot_implet_clusters_with_instances(implets_class_i, test_x[instances_num], save_path=save_path, title= f"Number of Implet {len(implets_class_i)}")
+                    plot_implet_clusters_with_instances(implets_class_i, test_x[instances_num], save_path=save_path,
+                                                        title=f"Number of Implet {len(implets_class_i)}")
 
                 if is_clustering:
                     # clustering
@@ -171,5 +179,5 @@ for model_name in model_names:
                         'second_half_attr': second_half_attr,
 
                     }
-                    pickle_save_to_file(implet_cluster_results, os.path.join(implets_save_dir, f'{implate_name}_cluster_results.pkl'))
-
+                    pickle_save_to_file(implet_cluster_results,
+                                        os.path.join(implets_save_dir, f'{implate_name}_cluster_results.pkl'))
