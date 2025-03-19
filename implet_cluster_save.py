@@ -18,23 +18,17 @@ verbose = True
 device = torch.device("cpu")
 
 model_names = ['InceptionTime'] #, 'FCN',
-tasks = tasks_new#['GunPointMaleVersusFemale']  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+tasks = tasks_new  #tasks_new #  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
 xai_names = ['Saliency'] #  'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
 
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = 'output/blurring_test.csv'
-is_attr_abs = False
+
+is_attr_abs = True
 is_vis_implet = True
 is_clustering = True
 is_global_threshold = False
-if os.path.isfile(result_path):
-    result = pd.read_csv(result_path).values.tolist()
-else:
-    result = []
-
-n_trials = 10
 
 for model_name in model_names:
     print(f'======== {model_name} ========')
@@ -89,6 +83,7 @@ for model_name in model_names:
                 'implets_class1': implets_class1,
             }
             implets_save_dir = f'./output/{model_name}/{task}/{explainer}' if is_attr_abs else f'./output/no_abs/{model_name}/{task}/{explainer}'
+            print(implets_save_dir)
             pickle_save_to_file(data=implets_list,
                                 file_path=os.path.join(implets_save_dir, 'implets.pkl'))
 

@@ -12,17 +12,17 @@ from utils import pickle_save_to_file, pickle_load_from_file
 from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
-
+from utils.constants import tasks,tasks_new
 device = torch.device("cpu")
 
 model_names = ['FCN', 'InceptionTime']
-tasks = ['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes", "Strawberry"] #
+tasks = tasks_new + tasks #['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes", "Strawberry"] #
 
 xai_names = ['Saliency','GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion'] #
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = f'output/implet_coverage.csv'
+result_path = f'output/implet_coverage_new.csv'
 
 
 result = []

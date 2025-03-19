@@ -2,12 +2,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from utils.constants import tasks, tasks_new
+
 pd.set_option('display.max_columns', None)
 
 model_names = ['FCN', 'InceptionTime']
 xai_names = ['Saliency']
 
-result = pd.read_csv(f'output/half_dataset_test.csv')
+num_tasks = len(tasks) + len(tasks_new)
+
+result = pd.read_csv(f'output/half_dataset_test_new.csv')
+# result = pd.read_csv(f'output/half_dataset_test.csv')
 
 baseline = result[result['xai_name'].isnull()]
 df = result[~result['xai_name'].isnull()]
@@ -17,7 +22,7 @@ df['acc_drop'] = df['acc_score_y'] - df['acc_score_x']
 
 df['tag'] = df[['implet_src_x', 'mode_x', 'method_x']].agg(', '.join, axis=1)
 
-plt.figure(dpi=300)
+plt.figure(dpi=300, figsize=(8, 8))
 
 for model_name in model_names:
     for xai_name in xai_names:
@@ -26,18 +31,18 @@ for model_name in model_names:
 
         bars = ax.patches  # Get all bars
         for i, bar in enumerate(bars):
-            if (i // 6) % 2 == 1:  # Apply to odd-numbered bars in each group
-                bar.set_edgecolor(plt.get_cmap('tab10')((i // 6) // 2))
+            if (i // num_tasks) % 2 == 1:  # Apply to odd-numbered bars in each group
+                bar.set_edgecolor(plt.get_cmap('tab10')((i // num_tasks) // 2))
                 bar.set_facecolor('none')
                 bar.set_hatch('//')
             else:
-                bar.set_facecolor(plt.get_cmap('tab10')((i // 6) // 2))
+                bar.set_facecolor(plt.get_cmap('tab10')((i // num_tasks) // 2))
 
-        plt.ylim(-0.105, 0.505)
+        # plt.ylim(-0.105, 0.505)
         plt.title(f'{model_name}, {xai_name}')
         plt.xticks(rotation=70)
         plt.tight_layout()
-        plt.savefig(f'figure/half_dataset/{model_name}_{xai_name}.png')
+        plt.savefig(f'figure/half_dataset/{model_name}_{xai_name}_new.png')
         plt.clf()
 
 

@@ -2,13 +2,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from utils.constants import tasks, tasks_new
+
 # modes = ['single', 'all', 'single_pos_only', 'all_pos_only']
 mode = 'all_pos_only'
 
 model_names = ['FCN', 'InceptionTime']
 xai_names = ['DeepLift', 'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
              'Saliency']
-tasks = ['GunPoint', "ECG200", "DPOC", "PowerCons", "Earthquakes", "Strawberry"]
+tasks = tasks_new + tasks#['GunPoint', "ECG200", "DPOC", "PowerCons", "Earthquakes", "Strawberry"]
 result = pd.read_csv(f'output/blurring_test_{mode}.csv')
 
 baseline = result[result['xai_name'].isnull()]
