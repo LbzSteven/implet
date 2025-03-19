@@ -19,7 +19,7 @@ verbose = True
 device = torch.device("cpu")
 
 model_names = ['FCN', 'InceptionTime']  #,
-tasks = ['ECGFiveDays']  #tasks_new + tasks  #
+tasks = ['Chinatown']#['ECGFiveDays']  #tasks_new + tasks  #
 xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']  #
 
 np.random.seed(42)

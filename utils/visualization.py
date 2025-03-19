@@ -357,7 +357,9 @@ def plot_implet_clusters_with_instances(implets, instances,
     for instance in instances:
         plt.plot(instance.flatten(), color='gray', alpha=0.60)
     # normalize importance coloring based on max(abs(importance))
-    attrs = np.concatenate([np.abs(imp[1]).flatten() for imp in implets])
+    attrs = np.concatenate([np.abs(imp[2]).flatten() for imp in implets])
+
+
     extremum = np.mean(attrs) + 3 * np.std(attrs)
     norm = mcolors.Normalize(vmin=-extremum, vmax=extremum) if norm is None else norm
 
@@ -411,7 +413,7 @@ def plot_implet_clusters_with_instances(implets, instances,
     #     axs[j].set_title(f'members: {str(cluster_indices[j])}')
     #     axs[j].autoscale()l
     #     # axs[j].set_ylim(lim_y_min, lim_y_max)
-    plt.title(title,fontsize=20)
+    plt.title(title, fontsize=20)
     plt.tight_layout()
 
     _save_or_show(save_path)

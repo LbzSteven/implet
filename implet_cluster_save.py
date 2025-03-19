@@ -13,20 +13,21 @@ from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor, implet_cluster_auto, implet_cluster
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
 from utils.constants import tasks_new
-k = None
+
+k = 2
 verbose = True
 device = torch.device("cpu")
 
-model_names = ['InceptionTime'] #, 'FCN',
-tasks = tasks_new  #tasks_new #  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-xai_names = ['Saliency'] #  'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
-
+model_names = ['FCN' ]  #, 'FCN', 'InceptionTime'
+tasks = [
+    'GunPoint']  #tasks_new  #tasks_new #  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+xai_names = ['Saliency']  #  'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
 
 is_attr_abs = True
-is_vis_implet = True
+is_vis_implet = False
 is_clustering = True
 is_global_threshold = False
 
@@ -72,24 +73,28 @@ for model_name in model_names:
             with open(f'attributions/{model_name}/{task}/{explainer}/test_exp.pkl', 'rb') as f:
                 attr = pickle.load(f)
             attr_test = attr['attributions']
-
+            if task == 'Chinatown':
+                kmin = 2
+            else:
+                kmin = None
             # compute implets
-            implets_class0 = implet_extractor(test_x, test_y, attr_test, target_class=0, is_attr_abs=is_attr_abs, is_global_threshold=is_global_threshold)
-            implets_class1 = implet_extractor(test_x, test_y, attr_test, target_class=1, is_attr_abs=is_attr_abs, is_global_threshold=is_global_threshold)
+            implets_class0 = implet_extractor(test_x, test_y, attr_test, target_class=0, is_attr_abs=is_attr_abs,
+                                              kmin=kmin, is_global_threshold=is_global_threshold)
+            implets_class1 = implet_extractor(test_x, test_y, attr_test, target_class=1, is_attr_abs=is_attr_abs,
+                                              kmin=kmin, is_global_threshold=is_global_threshold)
             implets = implets_class0 + implets_class1
-
+            print(f'number of the implets {len(implets)}')
             implets_list = {
                 'implets_class0': implets_class0,
                 'implets_class1': implets_class1,
             }
-            implets_save_dir = f'./output/{model_name}/{task}/{explainer}' if is_attr_abs else f'./output/no_abs/{model_name}/{task}/{explainer}'
-            print(implets_save_dir)
+            # implets_save_dir = f'./output/{model_name}/{task}/{explainer}' if is_attr_abs else f'./output/no_abs/{model_name}/{task}/{explainer}'
+            implets_save_dir = f'./output/{model_name}/{task}/{explainer}' if k is None else f'./output/k{k}/{model_name}/{task}/{explainer}'
+            # print(implets_save_dir)
             pickle_save_to_file(data=implets_list,
                                 file_path=os.path.join(implets_save_dir, 'implets.pkl'))
 
             # print(implet_with_attr, instances_num)
-
-
 
             for implate_name, implets_class_i in implets_list.items():
                 num_implets = len(implets_class_i)
@@ -100,7 +105,8 @@ for model_name in model_names:
                     instances_num.sort()
                     # print(num_implets, implets_class_i, implets_class_i[0][1].shape, implets_class_i[0][2].shape)
                     save_path = f'./{implets_save_dir}/{implate_name}_vis.png'
-                    plot_implet_clusters_with_instances(implets_class_i, test_x[instances_num], save_path=save_path, title= f"Number of Implet {len(implets_class_i)}")
+                    plot_implet_clusters_with_instances(implets_class_i, test_x[instances_num], save_path=save_path,
+                                                        title=f"Number of Implet {len(implets_class_i)}")
 
                 if is_clustering:
                     # clustering
@@ -139,5 +145,5 @@ for model_name in model_names:
                         'best_indices_1d': best_indices_1d,
                         'best_centroids_1d': best_centroids_1d,
                     }
-                    pickle_save_to_file(implet_cluster_results, os.path.join(implets_save_dir, f'{implate_name}_cluster_results.pkl'))
-
+                    pickle_save_to_file(implet_cluster_results,
+                                        os.path.join(implets_save_dir, f'{implate_name}_cluster_results.pkl'))

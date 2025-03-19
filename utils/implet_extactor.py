@@ -128,6 +128,8 @@ def max_score_subsequence(arr, left, lamb, threshold, kmin=None, kmax=None):
         current_sum += arr[right]
         length = right - left + 1
         current_score = (current_sum / length) + lamb * length
+        if length == 0:
+            print(len(arr), right, left, kmin)
         if current_score > max_score and (current_sum / length) > threshold:
             max_score = current_score
             best_start, best_end = left, right
@@ -137,7 +139,7 @@ def max_score_subsequence(arr, left, lamb, threshold, kmin=None, kmax=None):
     return arr[best_start:best_end + 1], max_score, best_start, best_end
 
 
-def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False, thresh_factor=1, is_attr_abs=True):
+def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_global_threshold=False, thresh_factor=1, kmin=None, is_attr_abs=True):
     """
     extract implets from a dataset with a computed threshold. This method iterate through instances in datasets and put them into
     max_score_subsequence to find the subseuqnece that with the largest subsequence with each starting points.
@@ -182,7 +184,7 @@ def implet_extractor(train_x, train_y, attr, target_class=None, lamb=0.1, is_glo
         # threshold = avg + 0.6 * std
         while starting < len(input_attr):
             sub_attr, max_score, best_start, best_end = max_score_subsequence(arr=input_attr, left=starting, lamb=lamb,
-                                                                              threshold=threshold)
+                                                                              threshold=threshold, kmin=kmin)
             if best_end != -1:
                 implets.append(
                     [i, inst[best_start:best_end + 1], attr[i, best_start:best_end + 1], max_score, best_start,
