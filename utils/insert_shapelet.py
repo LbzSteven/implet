@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from sklearn.metrics import mean_squared_error
 from scipy.interpolate import make_interp_spline
+import scipy.signal as signal
 
 import utils
 from utils.model_utils import get_pred_with_acc
@@ -26,21 +27,25 @@ def insert_blender(instance, shape1, starting, blend_length):
 
     ending = starting + shapelet_length
 
-    # Create blending weights
-    blend_end = np.linspace(0, 1, blend_length)
-    blend_start = np.linspace(1, 0, blend_length)
     # shape1
     # Insert sequence with blending
     result_sequence = instance.copy()
     result_sequence[starting:ending] = shape1
 
+    blend_len_start = min(blend_length, starting)
+    blend_len_end = min(blend_length, length - ending)
+
+    # Create blending weights
+    blend_start = np.linspace(1, 0, blend_len_start)
+    blend_end = np.linspace(0, 1, blend_len_end)
+
     # Apply blending at the start
-    result_sequence[starting - blend_length:starting] \
-        = instance[starting - blend_length] * blend_start + shape1[0] * blend_end
+    result_sequence[starting - blend_len_start:starting] \
+        = instance[starting - blend_len_start] * blend_start + shape1[0] * blend_start[::-1]
 
     # Apply blending at the end
-    result_sequence[ending:ending + blend_length] = \
-        instance[ending: ending + blend_length] * blend_end + shape1[-1] * blend_start
+    result_sequence[ending:ending + blend_len_end] = \
+        instance[ending: ending + blend_len_end] * blend_end + shape1[-1] * blend_end[::-1]
 
     return result_sequence
 
@@ -504,8 +509,8 @@ def get_pdata(
     return pdata
 
 
-def _generate_smooth_signal(start, end, start_gradient, end_gradient, y_min=None, y_max=None,
-                           num_points=100, random_seed=None):
+def _rand_poly(start, end, start_gradient, end_gradient, y_min=None, y_max=None,
+               num_points=100, random_seed=None):
     """
     Generate a random, smooth 1D signal.
 
@@ -553,40 +558,106 @@ def _generate_smooth_signal(start, end, start_gradient, end_gradient, y_min=None
     return y_fine
 
 
-def overwrite_shaplet_random(instance, start, length, blend_length=5):
+def _butter_cutoff(data):
+    fs = len(data)  # Sampling rate estimation
+
+    # Compute FFT to determine dominant frequency components
+    fft_spectrum = np.fft.fft(data)
+    freqs = np.fft.fftfreq(len(data), d=1 / fs)
+    power_spectrum = np.abs(fft_spectrum)
+
+    # Select cutoff frequency dynamically (e.g., 90% energy threshold)
+    sorted_power = np.sort(power_spectrum)
+    energy_threshold = np.sum(sorted_power) * 0.90  # 90% of total energy
+    cumulative_energy = np.cumsum(sorted_power)
+    cutoff_idx = np.where(cumulative_energy >= energy_threshold)[0][0]
+    cutoff_freq = np.abs(freqs[cutoff_idx])
+
+    return cutoff_freq
+
+
+def _low_pass_filter(data, order=4):
+    fs = len(data)  # Sampling rate estimation
+    nyquist = 0.5 * fs
+    cutoff = _butter_cutoff(data)
+    normal_cutoff = cutoff / nyquist
+    b, a = signal.butter(order, normal_cutoff, btype='low', analog=False)
+    return signal.filtfilt(b, a, data, padlen=0)
+
+
+def _high_pass_filter(data, order=4):
+    fs = len(data)  # Sampling rate estimation
+    nyquist = 0.5 * fs
+    cutoff = _butter_cutoff(data)
+    normal_cutoff = cutoff / nyquist
+    b, a = signal.butter(order, normal_cutoff, btype='high', analog=False)
+    return signal.filtfilt(b, a, data, padlen=0)
+
+
+def overwrite_shaplet_random(instance, start, length, mode, blend_length=5):
     """
     Insert a random signal of LENGTH into INSTANCE at a given location.
     """
+
     end = start + length - 1
 
-    val_start = instance[start]
-    val_end = instance[end]
+    match mode:
+        case 'poly':
+            val_start = instance[start]
+            val_end = instance[end]
 
-    grad_start_len = max(start - blend_length, 0) - start
-    grad_start = (instance[start] - instance[max(start - blend_length, 0)]) / grad_start_len \
-        if grad_start_len != 0 else 0
+            grad_start_len = max(start - blend_length, 0) - start
+            grad_start = (instance[start] - instance[max(start - blend_length, 0)]) / grad_start_len \
+                if grad_start_len != 0 else 0
 
-    grad_end_len = min(end + blend_length, len(instance) - 1) - end
-    grad_end = (instance[min(end + blend_length, len(instance) - 1)] - instance[end]) / grad_end_len \
-        if grad_end_len != 0 else 0
+            grad_end_len = min(end + blend_length, len(instance) - 1) - end
+            grad_end = (instance[min(end + blend_length, len(instance) - 1)] - instance[end]) / grad_end_len \
+                if grad_end_len != 0 else 0
 
-    y_min = np.min(instance[start:end + 1])
-    y_max = np.max(instance[start:end + 1])
+            y_min = np.min(instance[start:end + 1])
+            y_max = np.max(instance[start:end + 1])
 
-    segment_rand = _generate_smooth_signal(val_start, val_end,
-                                           grad_start, grad_end,
-                                           y_min, y_max,
-                                           length)
+            segment_insert = _rand_poly(val_start, val_end,
+                                        grad_start, grad_end,
+                                        y_min, y_max,
+                                        length)
 
-    result = instance.copy()
-    result[start:end + 1] = segment_rand
-    # result = insert_blender(instance, segment_rand, start, blend_length)
+        case 'zero':
+            segment_insert = np.zeros(length)
+
+        case 'mean':
+            segment_insert = np.ones(length) * np.mean(instance)
+
+        case 'gauss':
+            mean = np.mean(instance)
+            std = np.std(instance)
+            segment_insert = np.random.randn(length) * std + mean
+
+        case 'slidingwindow':
+            window_size = 5
+            _instance = np.pad(instance, window_size // 2, 'edge')
+            segment = _instance[start:end + 1 + window_size // 2]
+            segment_insert = np.cumsum(segment, dtype=float)
+            segment_insert[window_size:] = segment_insert[window_size:] - segment_insert[:-window_size]
+            segment_insert = segment_insert[window_size - 1:] / window_size
+
+        case 'lowpass':
+            segment_insert = _low_pass_filter(instance[start:end + 1])
+
+        case 'highpass':
+            segment_insert = _high_pass_filter(instance[start:end + 1])
+
+        case _:
+            raise ValueError
+
+    # result[start:end + 1] = segment_insert
+    result = insert_blender(instance, segment_insert, start, blend_length)
     return result
 
 
-def insert_random(instance, length):
+def insert_random(instance, length, mode):
     """
     Insert a random signal of LENGTH into INSTANCE at a random location.
     """
     start = np.random.randint(len(instance) - length + 1)
-    return overwrite_shaplet_random(instance, start, length)
+    return overwrite_shaplet_random(instance, start, length, mode)
