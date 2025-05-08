@@ -12,22 +12,21 @@ from utils import pickle_save_to_file, plot_implet_clusters_with_instances
 from utils.data_utils import read_UCR_UEA
 from utils.implet_extactor import implet_extractor, implet_cluster_auto, implet_cluster
 from utils.insert_shapelet import insert_random, overwrite_shaplet_random
-from utils.constants import tasks_new
+from utils.constants import tasks, tasks_new
 
-k = 2
+k = None
 verbose = True
 device = torch.device("cpu")
 
-model_names = ['FCN' ]  #, 'FCN', 'InceptionTime'
-tasks = [
-    'GunPoint']  #tasks_new  #tasks_new #  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
-xai_names = ['Saliency']  #  'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion',
+model_names = ['InceptionTime', 'FCN', ]  #,
+tasks = tasks + tasks_new #['GunPoint']  #tasks_new  #tasks_new #  #['GunPoint'] # , "Strawberry", "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+xai_names = ['DeepLift', 'Saliency', 'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', ]  #  ,
 
 # each row is [model_name, task_name, xai_name, method, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
 
 is_attr_abs = True
-is_vis_implet = False
+is_vis_implet = True
 is_clustering = True
 is_global_threshold = False
 
@@ -65,19 +64,29 @@ for model_name in model_names:
 
 
         # load dataset
-        _, test_x, _, test_y, _ = read_UCR_UEA(task, None)
+        if task.startswith('motiv'):
+            with open(f'models/{model_name}/{task}/data.pkl', 'rb') as f:
+                data = pickle.load(f)
+            train_x, test_x, train_y, test_y = data['train_x'], data['test_x'], data['train_y'], data['test_y']
+        else:
+            _, test_x, _, test_y, _ = read_UCR_UEA(task, None)
         test_y = np.argmax(test_y, axis=1)
 
         for explainer in xai_names:
             # load attributions
+            if model_name == 'InceptionTime' and explainer == 'DeepLift':
+                continue
             with open(f'attributions/{model_name}/{task}/{explainer}/test_exp.pkl', 'rb') as f:
                 attr = pickle.load(f)
             attr_test = attr['attributions']
             if task == 'Chinatown':
                 kmin = 2
+            elif task == 'GunPoint':
+                kmin = 4
             else:
                 kmin = None
             # compute implets
+
             implets_class0 = implet_extractor(test_x, test_y, attr_test, target_class=0, is_attr_abs=is_attr_abs,
                                               kmin=kmin, is_global_threshold=is_global_threshold)
             implets_class1 = implet_extractor(test_x, test_y, attr_test, target_class=1, is_attr_abs=is_attr_abs,
@@ -122,16 +131,17 @@ for model_name in model_names:
                         best_indices_dep, best_centroids_dep = implet_cluster(implet_with_attr, k)
 
                     # 1d DTW
-                    if verbose:
-                        print('computing 1D DTW')
-                    implet_itself = [imp[1] for imp in implets_class_i]
-                    # if len(implet_itself) > 100:
-                    #     implet_itself = random.sample(implet_itself, 100)
-                    if k is None:
-                        best_k_1d, best_indices_1d, best_centroids_1d = implet_cluster_auto(implet_itself, None)
-                    else:
-                        best_k_1d = k
-                        best_indices_1d, best_centroids_1d = implet_cluster(implet_itself, k)
+                    # if verbose:
+                    #     print('computing 1D DTW')
+                    # implet_itself = [imp[1] for imp in implets_class_i]
+                    # # if len(implet_itself) > 100:
+                    # #     implet_itself = random.sample(implet_itself, 100)
+                    # if k is None:
+                    #     best_k_1d, best_indices_1d, best_centroids_1d = implet_cluster_auto(implet_itself, None)
+                    # else:
+                    #     best_k_1d = k
+                    #     best_indices_1d, best_centroids_1d = implet_cluster(implet_itself, k)
+
                     # if is_plot:
                     #     plot_implet_clusters(implet_with_attr, best_indices_1d, best_centroids_1d,
                     #                          save_path=os.path.join(implets_save_dir, 'cluster_1dDTW.png'))
@@ -141,9 +151,9 @@ for model_name in model_names:
                         'best_k_dep': best_k_dep,
                         'best_indices_dep': best_indices_dep,
                         'best_centroids_dep': best_centroids_dep,
-                        'best_k_1d': best_k_1d,
-                        'best_indices_1d': best_indices_1d,
-                        'best_centroids_1d': best_centroids_1d,
+                        # 'best_k_1d': best_k_1d,
+                        # 'best_indices_1d': best_indices_1d,
+                        # 'best_centroids_1d': best_centroids_1d,
                     }
                     pickle_save_to_file(implet_cluster_results,
                                         os.path.join(implets_save_dir, f'{implate_name}_cluster_results.pkl'))

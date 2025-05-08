@@ -12,6 +12,8 @@ from utils.explaination_utils import explain, get_xai_ref
 from utils.visualization import plot_multiple_images_with_attribution
 from utils.utils import pickle_save_to_file, pickle_load_from_file
 
+from aeon.classification.shapelet_based import ShapeletTransformClassifier
+
 
 def insert_blender(instance, shape1, starting, blend_length):
     """
@@ -27,6 +29,9 @@ def insert_blender(instance, shape1, starting, blend_length):
 
     ending = starting + shapelet_length
 
+    # Create blending weights
+    blend_end = np.linspace(0, 1, blend_length)
+    blend_start = np.linspace(1, 0, blend_length)
     # shape1
     # Insert sequence with blending
     result_sequence = instance.copy()
@@ -509,8 +514,8 @@ def get_pdata(
     return pdata
 
 
-def _rand_poly(start, end, start_gradient, end_gradient, y_min=None, y_max=None,
-               num_points=100, random_seed=None):
+def _generate_smooth_signal(start, end, start_gradient, end_gradient, y_min=None, y_max=None,
+                           num_points=100, random_seed=None):
     """
     Generate a random, smooth 1D signal.
 

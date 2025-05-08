@@ -18,9 +18,9 @@ k = None
 verbose = True
 device = torch.device("cpu")
 
-model_names = ['FCN', 'InceptionTime']  #,
-tasks = ['Chinatown']#['ECGFiveDays']  #tasks_new + tasks  #
-xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']  #
+model_names = ['InceptionTime', 'FCN', ]  #,
+tasks = tasks_new + tasks #['Chinatown']#['ECGFiveDays']  #tasks_new + tasks  #
+xai_names = ['DeepLift', 'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']  #
 
 np.random.seed(42)
 # each row is [model_name, task_name, xai_name, method, acc_score]
@@ -86,6 +86,8 @@ for model_name in model_names:
         second_half_y = test_y[len(test_y) // 2:]
 
         for explainer in xai_names:
+            if model_name == 'InceptionTime' and explainer == 'DeepLift':
+                continue
             # load attributions
             with open(f'attributions/{model_name}/{task}/{explainer}/test_exp.pkl', 'rb') as f:
                 attr = pickle.load(f)
@@ -146,16 +148,16 @@ for model_name in model_names:
                         best_indices_dep, best_centroids_dep = implet_cluster(implet_with_attr, k)
 
                     # 1d DTW
-                    if verbose:
-                        print('computing 1D DTW')
-                    implet_itself = [imp[1] for imp in implets_class_i]
-                    # if len(implet_itself) > 100:
-                    #     implet_itself = random.sample(implet_itself, 100)
-                    if k is None:
-                        best_k_1d, best_indices_1d, best_centroids_1d = implet_cluster_auto(implet_itself, None)
-                    else:
-                        best_k_1d = k
-                        best_indices_1d, best_centroids_1d = implet_cluster(implet_itself, k)
+                    # if verbose:
+                    #     print('computing 1D DTW')
+                    # implet_itself = [imp[1] for imp in implets_class_i]
+                    # # if len(implet_itself) > 100:
+                    # #     implet_itself = random.sample(implet_itself, 100)
+                    # if k is None:
+                    #     best_k_1d, best_indices_1d, best_centroids_1d = implet_cluster_auto(implet_itself, None)
+                    # else:
+                    #     best_k_1d = k
+                    #     best_indices_1d, best_centroids_1d = implet_cluster(implet_itself, k)
                     # if is_plot:
                     #     plot_implet_clusters(implet_with_attr, best_indices_1d, best_centroids_1d,
                     #                          save_path=os.path.join(implets_save_dir, 'cluster_1dDTW.png'))
@@ -165,9 +167,9 @@ for model_name in model_names:
                         'best_k_dep': best_k_dep,
                         'best_indices_dep': best_indices_dep,
                         'best_centroids_dep': best_centroids_dep,
-                        'best_k_1d': best_k_1d,
-                        'best_indices_1d': best_indices_1d,
-                        'best_centroids_1d': best_centroids_1d,
+                        # 'best_k_1d': best_k_1d,
+                        # 'best_indices_1d': best_indices_1d,
+                        # 'best_centroids_1d': best_centroids_1d,
 
                         'first_half_x': first_half_x,
                         'second_half_x': second_half_x,

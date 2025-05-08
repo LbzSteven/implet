@@ -17,10 +17,10 @@ from utils.constants import tasks_new
 
 device = torch.device("cpu")
 
-model_names = ['FCN']
-tasks = tasks_new # , "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes", "Strawberry"
+model_names = ['InceptionTime']
+tasks = ['motiv1_new'] #tasks_new # , "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes", "Strawberry"
 
-xai_names = ['Saliency', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion' ] # , , 'Saliency'
+xai_names = ['Saliency', 'InputXGradient'] # , , 'Saliency'
 
 k = None
 is_clustering = True
@@ -55,7 +55,13 @@ for model_name in model_names:
             logits = model(x).detach().cpu().numpy()
             return np.argmax(logits, axis=-1)
         # load dataset
-        _, x_test, _, y_test, _ = read_UCR_UEA(task, None)
+
+        if task.startswith('motiv'):
+            with open(f'models/{model_name}/{task}/data.pkl', 'rb') as f:
+                data = pickle.load(f)
+            _, x_test, _, y_test = data['train_x'], data['test_x'], data['train_y'], data['test_y']
+        else:
+            _, x_test, _, y_test, _ = read_UCR_UEA(task, None)
         y_test = np.argmax(y_test, axis=1)
 
         # run prediction on unmodified samples
@@ -65,7 +71,7 @@ for model_name in model_names:
         print(entry)
 
         for explainer in xai_names:
-            _, test_x, _, test_y, _ = read_UCR_UEA(task, None)
+
             # load attributions
             with open(f'attributions/{model_name}/{task}/{explainer}/test_exp.pkl', 'rb') as f:
                 attr = pickle.load(f)
@@ -143,17 +149,17 @@ for model_name in model_names:
                 if best_k_dep is None:
                     continue
 
-                for clsuster_i in range(best_k_dep):
-
-
-                    implet_indexes = list(best_indices_dep[clsuster_i])
-                    # print(implet_indexes)
-                    implet_cluster = [implets_class_i[idx] for idx in implet_indexes]
-
-                    # implet_with_attr = [np.vstack((imp[1], imp[2])).T for imp in implet_cluster]
-
-                    instances_num = list(set([imp[0] for imp in implet_cluster]))
-                    instances_num.sort()
-                    # print(implet_with_attr, instances_num)
-                    save_path = f'./figure/cluster_result/half_cluster/{model_name}/{explainer}/{task}/{implate_name}_clsuter{clsuster_i}.png'
-                    plot_implet_clusters_with_instances(implet_cluster, test_x[instances_num], save_path=save_path)
+                # for clsuster_i in range(best_k_dep):
+                #
+                #
+                #     implet_indexes = list(best_indices_dep[clsuster_i])
+                #     # print(implet_indexes)
+                #     implet_cluster = [implets_class_i[idx] for idx in implet_indexes]
+                #
+                #     # implet_with_attr = [np.vstack((imp[1], imp[2])).T for imp in implet_cluster]
+                #
+                #     instances_num = list(set([imp[0] for imp in implet_cluster]))
+                #     instances_num.sort()
+                #     # print(implet_with_attr, instances_num)
+                #     save_path = f'./figure/cluster_result/{model_name}/{explainer}/{task}/{implate_name}_clsuter{clsuster_i}.png'
+                #     plot_implet_clusters_with_instances(implet_cluster, x_test[instances_num], save_path=save_path)

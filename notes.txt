@@ -1,0 +1,2 @@
+For gunpoint the hyperparameter
+python implet_main.py --dataset_choice GunPoint --sample_filter_class 0 --sample_filter_by_pred_y --implet_lambda 0.001 --thresh_factor 1.5

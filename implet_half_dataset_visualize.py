@@ -11,7 +11,7 @@ xai_names = ['Saliency']
 
 num_tasks = len(tasks) + len(tasks_new)
 
-result = pd.read_csv(f'output/half_dataset_test_new.csv')
+result = pd.read_csv(f'output/half_dataset_clsterting2dTrue_test_new.csv')
 # result = pd.read_csv(f'output/half_dataset_test.csv')
 
 baseline = result[result['xai_name'].isnull()]
@@ -42,7 +42,7 @@ for model_name in model_names:
         plt.title(f'{model_name}, {xai_name}')
         plt.xticks(rotation=70)
         plt.tight_layout()
-        plt.savefig(f'figure/half_dataset/{model_name}_{xai_name}_new.png')
+        plt.savefig(f'figure/half_dataset/{model_name}_{xai_name}_clsterting2dTrue.png')
         plt.clf()
 
 

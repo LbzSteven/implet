@@ -17,15 +17,16 @@ from utils.constants import tasks_new,tasks
 device = torch.device("cpu")
 
 model_names = ['FCN', 'InceptionTime']
-tasks_new.remove('Chinatown')
-tasks = tasks_new+tasks #tasks_new #['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
+# tasks_new.remove('Chinatown')
+tasks = tasks_new+tasks #['GunPoint'] #tasks_new #['GunPoint', "ECG200", "DistalPhalanxOutlineCorrect", "PowerCons", "Earthquakes",
 #"Strawberry"]
-# xai_names = ['GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']
-xai_names = ['Saliency']
+# xai_names = ['Saliency']
+xai_names = ['DeepLift', 'GuidedBackprop', 'InputXGradient', 'KernelShap', 'Lime', 'Occlusion', 'Saliency']
 
 # each row is [model_name, task_name, xai_name, method, implet_src, mode, acc_score]
 # method is in ['ori', 'repl_implet', 'repl_random_loc']
-result_path = f'output/half_dataset_test_new.csv'
+clustering_2d = True
+result_path = f'output/half_dataset_clsterting2d{clustering_2d}_test_new.csv'
 if os.path.isfile(result_path):
     result = pd.read_csv(result_path).values.tolist()
 else:
@@ -67,6 +68,8 @@ for model_name in model_names:
 
 
         for explainer in xai_names:
+            if model_name == 'InceptionTime' and explainer == 'DeepLift':
+                continue
             centroids = []  # 1D centroid values
             thresholds = []  # intra-cluster distance thresholds
             xs = None  # samples in the second half of the testing dataset
@@ -86,57 +89,112 @@ for model_name in model_names:
 
                     attrs = data['second_half_attr'] # Ziwen: data['first_half_attr'] 03/12/2025 this has been corrected
                     attrs = attrs.squeeze()
-
-                # 1D centroid values
                 _centroids = data['best_centroids_dep']
-                if _centroids:
-                    _centroids = [c[:, 0] for c in _centroids]
+
+                if not clustering_2d:
+                    # 1D centroid values
+                    if _centroids:
+                        _centroids = [c[:, 0] for c in _centroids]
+                    else:
+                        _centroids = []
+
+                    centroids += _centroids
+
+                    # intra-cluster distances & thresholds
+                    for j in range(len(_centroids)):
+                        c = _centroids[j]
+                        dists = []
+                        for i in data['best_indices_dep'][j]:
+                            implet = data['implets'][i][1]
+                            # print(implet.shape)
+                            dist = dtw_ndim.distance(c, implet)
+                            dists.append(dist)
+
+                        # set thresholds
+                        thresh = np.mean(dists) + 2 * np.std(dists)
+                        thresholds.append(thresh)
                 else:
-                    _centroids = []
+                    if not _centroids:
+                        _centroids = []
+                    centroids += _centroids
+                    print(len(centroids))
+                    print("len(_centroids)", len(_centroids))
+                    # intra-cluster distances & thresholds
+                    for j in range(len(_centroids)):
+                        c = _centroids[j]
+                        # print(c.shape)
+                        dists = []
+                        for i in data['best_indices_dep'][j]:
+                            implet = data['implets'][i][1]
+                            implet_attr = data['implets'][i][2]
+                            implet = np.vstack((implet, implet_attr)).T
+                            # print(implet.shape)
+                            dist = dtw_ndim.distance(c, implet)
+                            dists.append(dist)
 
-                centroids += _centroids
+                        # set thresholds
+                        thresh = np.mean(dists) + 2 * np.std(dists)
+                        # print("thresh:",thresh)
+                        thresholds.append(thresh)
 
-                # intra-cluster distances & thresholds
-                for j in range(len(_centroids)):
-                    c = _centroids[j]
-                    dists = []
-                    for i in data['best_indices_dep'][j]:
-                        implet = data['implets'][i][1]
-                        dist = dtw_ndim.distance(c, implet)
-                        dists.append(dist)
-
-                    # set thresholds
-                    thresh = np.mean(dists) + 2 * np.std(dists)
-                    thresholds.append(thresh)
 
             # compute real implets
             implets_real = []
             for cls in range(2):
-                print(xs.shape, ys.shape, attrs.shape)
+                # print(xs.shape, ys.shape, attrs.shape)
                 implets_real += implet_extractor(xs, ys, attrs, target_class=cls)
 
             # identify "implets" in the second half of the dataset
             # they should be similar to cluster centroids of the first half
             identified_implets_dict = {j: [] for j in range(len(centroids))}
 
-            for j in range(len(centroids)):
-                for i, x in enumerate(xs):
-                    min_len = 3
-                    max_len = x.shape[0] // 2
-                    subseq_alignment = subsequence_alignment(centroids[j], x)
-                    match = subseq_alignment.best_match()
-                    l, r = match.segment
-                    subseq_len = r - l + 1
-                    if match.distance <= thresholds[j] and min_len <= subseq_len <= max_len:
-                        identified_implets_dict[j].append((
-                            i,  # instance index in the second half
-                            x[l:r + 1],  # subsequence
-                            None,  # attr, placeholder
-                            match.distance,  # score, the distance between the centroid and the subsequence
-                            l,  # staring loc
-                            r  # ending loc
-                        ))
+            if not clustering_2d:
+                for j in range(len(centroids)):
 
+                    for i, x in enumerate(xs):
+                        min_len = 3
+                        max_len = x.shape[0] // 2
+
+                        subseq_alignment = subsequence_alignment(centroids[j], x)
+                        match = subseq_alignment.best_match()
+                        l, r = match.segment
+                        subseq_len = r - l + 1
+                        if match.distance <= thresholds[j] and min_len <= subseq_len <= max_len:
+                            identified_implets_dict[j].append((
+                                i,  # instance index in the second half
+                                x[l:r + 1],  # subsequence
+                                None,  # attr, placeholder
+                                match.distance,  # score, the distance between the centroid and the subsequence
+                                l,  # staring loc
+                                r  # ending loc
+                            ))
+
+            else:
+
+                x_as = np.array([np.vstack((xs[i],attrs[i])).T for i in range(len(xs))])
+                # print("xs.shape, attrs.shape:", xs.shape, attrs.shape)
+                # print("x_as.shape:", x_as.shape)
+                # print("len(centroids)", len(centroids))
+                for j in range(len(centroids)):
+                    for i, x in enumerate(x_as):
+                        min_len = 3
+                        max_len = x.shape[0] // 2
+                        # print("x.shape", "centroids[j].shape", x.shape, centroids[j].shape)
+                        subseq_alignment = subsequence_alignment(centroids[j], x)
+                        match = subseq_alignment.best_match()
+                        l, r = match.segment
+                        subseq_len = r - l + 1
+                        if match.distance <= thresholds[j] and min_len <= subseq_len <= max_len:
+                            identified_implets_dict[j].append((
+                                i,  # instance index in the second half
+                                x[l:r + 1],  # subsequence
+                                None,  # attr, placeholder
+                                match.distance,  # score, the distance between the centroid and the subsequence
+                                l,  # staring loc
+                                r  # ending loc
+                            ))
+                        # print(match.distance)
+                    print("identified_implets_dict[j]'s length:", len(identified_implets_dict[j]))
             implets_ident = []
             for v in identified_implets_dict.values():
                 implets_ident += v
